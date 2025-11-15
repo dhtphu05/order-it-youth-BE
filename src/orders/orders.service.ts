@@ -3,7 +3,10 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   Prisma,
   combo_pricing_type,
@@ -15,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CheckoutOrderDto, CheckoutItemDto } from './dto/checkout-order.dto';
 import { generateOrderCode } from './helpers/order-code.helper';
 import { OrderResponseDto } from './dto/order-response.dto';
+import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 
 type VariantWithProduct = Prisma.product_variantsGetPayload<{
   include: { product: true };
@@ -38,7 +42,10 @@ type ComputedItem = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async checkout(dto: CheckoutOrderDto): Promise<OrderResponseDto> {
     const existed = await this.prisma.idempotency_keys.findFirst({
@@ -188,6 +195,48 @@ export class OrdersService {
       }
       throw error;
     }
+  }
+
+  async getPaymentIntent(code: string): Promise<PaymentIntentResponseDto> {
+    const order = await this.prisma.orders.findUnique({
+      where: { code },
+    });
+
+    if (!order) {
+      throw new NotFoundException({
+        code: 'ORDER_NOT_FOUND',
+        message: 'Order not found',
+      });
+    }
+
+    if (order.payment_status !== payment_status.PENDING) {
+      throw new BadRequestException({
+        code: 'ORDER_NOT_PENDING',
+        message: 'Order is not in PENDING state',
+      });
+    }
+
+    const bankCode = this.config.get<string>('PAYMENT_BANK_CODE');
+    const accountNo = this.config.get<string>('PAYMENT_ACCOUNT_NO');
+    const accountName = this.config.get<string>('PAYMENT_ACCOUNT_NAME');
+
+    if (!bankCode || !accountNo || !accountName) {
+      throw new InternalServerErrorException({
+        code: 'PAYMENT_ACCOUNT_NOT_CONFIGURED',
+        message: 'Payment account information is missing.',
+      });
+    }
+
+    const transferContent = order.payment_reference ?? order.code;
+
+    return {
+      order_code: order.code,
+      amount_vnd: order.grand_total_vnd,
+      bank_code: bankCode,
+      account_no: accountNo,
+      account_name: accountName,
+      transfer_content: transferContent,
+    };
   }
 
   private buildVariantItem(

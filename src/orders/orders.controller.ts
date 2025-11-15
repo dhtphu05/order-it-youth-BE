@@ -1,13 +1,15 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CheckoutOrderDto } from './dto/checkout-order.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
+import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 
 @ApiTags('Orders')
 @Controller('orders')
@@ -23,5 +25,12 @@ export class OrdersController {
   })
   checkout(@Body() dto: CheckoutOrderDto) {
     return this.ordersService.checkout(dto);
+  }
+
+  @Get(':code/payment-intent')
+  @ApiOperation({ summary: 'Lấy thông tin thanh toán VietQR' })
+  @ApiOkResponse({ type: PaymentIntentResponseDto })
+  getPaymentIntent(@Param('code') code: string) {
+    return this.ordersService.getPaymentIntent(code);
   }
 }
