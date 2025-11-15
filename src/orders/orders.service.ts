@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckoutOrderDto, CheckoutItemDto } from './dto/checkout-order.dto';
 import { generateOrderCode } from './helpers/order-code.helper';
+import { OrderResponseDto } from './dto/order-response.dto';
 
 type VariantWithProduct = Prisma.product_variantsGetPayload<{
   include: { product: true };
@@ -22,6 +23,8 @@ type VariantWithProduct = Prisma.product_variantsGetPayload<{
 type ComboWithComponents = Prisma.combosGetPayload<{
   include: { components: { include: { variant: { include: { product: true } } } } };
 }>;
+
+type OrderWithItems = Prisma.ordersGetPayload<{ include: { items: true } }>;
 
 type ComputedItem = {
   variantId?: string;
@@ -37,16 +40,19 @@ type ComputedItem = {
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async checkout(dto: CheckoutOrderDto) {
+  async checkout(dto: CheckoutOrderDto): Promise<OrderResponseDto> {
     const existed = await this.prisma.idempotency_keys.findFirst({
       where: { scope: dto.idem_scope, key: dto.idem_key },
     });
 
     if (existed?.order_code) {
-      return this.prisma.orders.findFirst({
+      const order = await this.prisma.orders.findFirst({
         where: { code: existed.order_code },
         include: { items: true },
       });
+      if (order) {
+        return this.toOrderResponse(order);
+      }
     }
 
     if (existed) {
@@ -85,8 +91,14 @@ export class OrdersService {
         : [],
     ]);
 
-    const variantMap = new Map(variants.map((variant) => [variant.id, variant]));
-    const comboMap = new Map(combos.map((combo) => [combo.id, combo]));
+    const variantMap = new Map<string, VariantWithProduct>(
+      variants.map(
+        (variant) => [variant.id, variant] as [string, VariantWithProduct],
+      ),
+    );
+    const comboMap = new Map<string, ComboWithComponents>(
+      combos.map((combo) => [combo.id, combo] as [string, ComboWithComponents]),
+    );
 
     const computedItems = dto.items.map((item) =>
       item.variant_id
@@ -155,7 +167,7 @@ export class OrdersService {
         return createdOrder;
       });
 
-      return order;
+      return this.toOrderResponse(order);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -165,10 +177,13 @@ export class OrdersService {
           where: { scope: dto.idem_scope, key: dto.idem_key },
         });
         if (existedKey?.order_code) {
-          return this.prisma.orders.findFirst({
+          const found = await this.prisma.orders.findFirst({
             where: { code: existedKey.order_code },
             include: { items: true },
           });
+          if (found) {
+            return this.toOrderResponse(found);
+          }
         }
       }
       throw error;
@@ -284,5 +299,25 @@ export class OrdersService {
       },
       HttpStatus.CONFLICT,
     );
+  }
+
+  private toOrderResponse(order: OrderWithItems): OrderResponseDto {
+    return {
+      code: order.code,
+      full_name: order.full_name,
+      phone: order.phone,
+      fulfillment_type: order.fulfillment_type,
+      payment_method: order.payment_method,
+      payment_status: order.payment_status,
+      grand_total_vnd: order.grand_total_vnd,
+      items: order.items.map((item) => ({
+        title: item.title_snapshot,
+        variant_id: item.variant_id,
+        combo_id: item.combo_id,
+        unit_price_vnd: item.unit_price_vnd,
+        quantity: item.quantity,
+        line_total_vnd: item.line_total_vnd,
+      })),
+    };
   }
 }

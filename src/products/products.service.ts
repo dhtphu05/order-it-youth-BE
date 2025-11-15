@@ -1,49 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-type ProductResponse = {
-  id: string;
-  name: string;
-  description: string | null;
-  is_donation_item: boolean;
-  variants: Array<{
-    id: string;
-    sku: string;
-    option1: string | null;
-    option2: string | null;
-    price_vnd: number;
-    price_version: number;
-    stock: number;
-  }>;
-};
-
-type ComboResponse = {
-  id: string;
-  name: string;
-  slug: string;
-  pricing_type: string;
-  list_price_vnd: number;
-  amount_off_vnd: number;
-  percent_off: number;
-  price_version: number;
-  components: Array<{
-    quantity: number;
-    variant: {
-      id: string;
-      sku: string;
-      option1: string | null;
-      option2: string | null;
-      price_vnd: number;
-      price_version: number;
-    };
-  }>;
-};
+import {
+  ComboResponseDto,
+  ProductResponseDto,
+} from './dto/product-response.dto';
 
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listProducts(): Promise<ProductResponse[]> {
+  async listProducts(): Promise<ProductResponseDto[]> {
     const products = await this.prisma.products.findMany({
       include: { variants: true },
       orderBy: { name: 'asc' },
@@ -66,7 +32,7 @@ export class ProductsService {
     }));
   }
 
-  async listActiveCombos(): Promise<ComboResponse[]> {
+  async listActiveCombos(): Promise<ComboResponseDto[]> {
     const combos = await this.prisma.combos.findMany({
       where: { is_active: true },
       include: { components: { include: { variant: true } } },
