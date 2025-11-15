@@ -1,0 +1,407 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// ==== 0) Enums ====
+enum fulfillment_type {
+  DELIVERY
+  PICKUP_SCHOOL
+}
+
+enum payment_method {
+  VIETQR
+  CASH
+  MANUAL_TRANSFER
+}
+
+enum payment_status {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum shipment_status {
+  PENDING
+  ASSIGNED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+enum combo_pricing_type {
+  FIXED_PRICE
+  SUM_COMPONENTS
+  SUM_MINUS_AMOUNT
+  SUM_MINUS_PERCENT
+}
+
+enum cart_status {
+  ACTIVE
+  CHECKED_OUT
+  ABANDONED
+}
+
+enum user_role {
+  ADMIN
+  STAFF
+  SHIPPER
+}
+
+/// ==== 1) Người dùng & khách hàng ====
+model users {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name     String   @db.VarChar(120)
+  email         String   @unique @db.VarChar(180)
+  password_hash String   @db.VarChar(120)
+  role          user_role @default(STAFF)
+  phone         String?  @db.VarChar(20)
+  meta          Json?    @db.JsonB
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  audit_logs audit_logs[]
+}
+
+model customers {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name  String   @db.VarChar(120)
+  phone      String   @db.VarChar(20)
+  email      String?  @db.VarChar(180)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  carts carts[]
+
+  @@index([phone], map: "idx_customers_phone")
+  @@index([email], map: "idx_customers_email")
+}
+
+/// ==== 2) Sản phẩm & biến thể, combo ====
+model products {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String   @db.VarChar(160)
+  description      String?  @db.Text
+  is_donation_item Boolean  @default(false)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  variants product_variants[]
+}
+
+model product_variants {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id    String   @db.Uuid
+  sku           String   @db.VarChar(60)
+  option1       String?  @db.VarChar(60) // size
+  option2       String?  @db.VarChar(60) // màu
+  price_vnd     Int      @default(0)
+  price_version BigInt   @default(dbgenerated("(extract(epoch from now()))::bigint"))
+  stock         Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  // Quan hệ ngược lại
+  combo_components combo_components[]
+  cart_items       cart_items[]
+  order_items      order_items[]
+  stock_movements  stock_movements[]
+
+  @@unique([product_id, sku])
+  @@index([sku], map: "idx_variant_sku")
+  @@index([price_version], map: "idx_variant_pricever")
+}
+
+model combos {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String             @db.VarChar(160)
+  slug            String             @unique @db.VarChar(160)
+  description     String?            @db.Text
+  pricing_type    combo_pricing_type @default(FIXED_PRICE)
+  list_price_vnd  Int                @default(0)
+  amount_off_vnd  Int                @default(0)
+  percent_off     Int                @default(0)
+  price_version   BigInt             @default(dbgenerated("(extract(epoch from now()))::bigint"))
+  is_active       Boolean            @default(true)
+  created_at      DateTime           @default(now()) @db.Timestamptz
+  updated_at      DateTime           @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  components combo_components[]
+  cart_items cart_items[]
+  order_items order_items[]
+}
+
+model combo_components {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  combo_id                 String   @db.Uuid
+  variant_id               String   @db.Uuid
+  quantity                 Int      @default(1)
+  unit_price_override_vnd  Int?
+  created_at               DateTime @default(now()) @db.Timestamptz
+  updated_at               DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  combo   combos           @relation(fields: [combo_id], references: [id], onDelete: Cascade)
+  variant product_variants @relation(fields: [variant_id], references: [id])
+
+  @@index([combo_id], map: "idx_combo_components_combo")
+}
+
+/// ==== 3) Coupon ====
+model coupons {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String   @unique @db.VarChar(40)
+  amount_off_vnd   Int      @default(0)
+  percent_off      Int      @default(0)
+  min_subtotal_vnd Int      @default(0)
+  usage_limit      Int      @default(0)
+  used_count       Int      @default(0)
+  starts_at        DateTime @db.Timestamptz
+  ends_at          DateTime @db.Timestamptz
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  cart_coupons  cart_coupons[]
+  order_coupons order_coupons[]
+}
+
+/// ==== 4) Giỏ hàng (Tuỳ chọn) ====
+model carts {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id       String?          @db.VarChar(64)
+  customer_id      String?          @db.Uuid
+  fulfillment_type fulfillment_type @default(PICKUP_SCHOOL)
+  full_name        String?          @db.VarChar(120)
+  phone            String?          @db.VarChar(20)
+  email            String?          @db.VarChar(180)
+  address          String?          @db.Text
+  note             String?          @db.Text
+  subtotal_vnd     Int              @default(0)
+  discount_vnd     Int              @default(0)
+  grand_total_vnd  Int              @default(0)
+  status           cart_status      @default(ACTIVE)
+  last_idem_key    String?          @db.VarChar(64)
+  meta             Json?            @db.JsonB
+  created_at       DateTime         @default(now()) @db.Timestamptz
+  updated_at       DateTime         @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  customer customers? @relation(fields: [customer_id], references: [id])
+
+  // Quan hệ ngược lại
+  items        cart_items[]
+  cart_coupons cart_coupons[]
+
+  @@index([status, updated_at], map: "idx_carts_status_updated")
+  @@index([session_id], map: "idx_carts_session")
+}
+
+model cart_items {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cart_id                 String   @db.Uuid
+  variant_id              String?  @db.Uuid
+  combo_id                String?  @db.Uuid
+  quantity                Int      @default(1)
+  title_snapshot          String?  @db.VarChar(180)
+  unit_price_snapshot_vnd Int      @default(0)
+  line_total_snapshot_vnd Int      @default(0)
+  price_version_snapshot  BigInt?
+  component_snapshot      Json?    @db.JsonB // breakdown combo
+  meta                    Json?    @db.JsonB
+  created_at              DateTime @default(now()) @db.Timestamptz
+  updated_at              DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  cart    carts             @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  variant product_variants? @relation(fields: [variant_id], references: [id])
+  combo   combos?           @relation(fields: [combo_id], references: [id])
+
+  @@index([cart_id], map: "idx_cart_items_cart")
+}
+
+model cart_coupons {
+  cart_id   String @db.Uuid
+  coupon_id String @db.Uuid
+
+  // Quan hệ
+  cart   carts   @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  coupon coupons @relation(fields: [coupon_id], references: [id], onDelete: Cascade)
+
+  @@id([cart_id, coupon_id])
+}
+
+/// ==== 5) Đơn hàng & dòng hàng ====
+model orders {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String           @unique @db.VarChar(40)
+  order_title      String           @db.VarChar(180)
+  quantity         Int              @default(1)
+  fulfillment_type fulfillment_type @default(PICKUP_SCHOOL)
+  full_name        String           @db.VarChar(120)
+  phone            String           @db.VarChar(20)
+  email            String?          @db.VarChar(180)
+  address          String?          @db.Text
+  note             String?          @db.Text
+  grand_total_vnd  Int              @default(0)
+  payment_method   payment_method   @default(VIETQR)
+  payment_status   payment_status   @default(PENDING)
+  payment_reference String?         @db.VarChar(120)
+  paid_at          DateTime?        @db.Timestamptz
+  created_at       DateTime         @default(now()) @db.Timestamptz
+  updated_at       DateTime         @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  items         order_items[]
+  order_coupons order_coupons[]
+  payments      payments[]
+  shipment      shipments? // Quan hệ 1-1
+
+  @@index([code], map: "idx_orders_code")
+  @@index([payment_status], map: "idx_orders_payment_status")
+  @@index([phone], map: "idx_orders_phone")
+}
+
+model order_items {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id           String   @db.Uuid
+  variant_id         String?  @db.Uuid
+  combo_id           String?  @db.Uuid
+  title_snapshot     String   @db.VarChar(180)
+  unit_price_vnd     Int      @default(0)
+  quantity           Int      @default(1)
+  line_total_vnd     Int      @default(0)
+  component_snapshot Json?    @db.JsonB
+  meta               Json?    @db.JsonB
+  created_at         DateTime @default(now()) @db.Timestamptz
+  updated_at         DateTime @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  order   orders            @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  variant product_variants? @relation(fields: [variant_id], references: [id])
+  combo   combos?           @relation(fields: [combo_id], references: [id])
+
+  @@index([order_id], map: "idx_order_items_order")
+}
+
+model order_coupons {
+  order_id  String @db.Uuid
+  coupon_id String @db.Uuid
+
+  // Quan hệ
+  order  orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  coupon coupons @relation(fields: [coupon_id], references: [id], onDelete: Cascade)
+
+  @@id([order_id, coupon_id])
+}
+
+/// ==== 6) Thanh toán ====
+model payments {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id         String         @db.Uuid
+  method           payment_method
+  status           payment_status @default(PENDING)
+  amount_vnd       Int
+  reference_code   String?        @db.VarChar(120)
+  transaction_id   String?        @unique(map: "uq_payments_transaction_id") @db.VarChar(160)
+  provider_payload Json?          @db.JsonB
+  paid_at          DateTime?      @db.Timestamptz
+  created_at       DateTime       @default(now()) @db.Timestamptz
+  updated_at       DateTime       @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  order orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id, status], map: "idx_payments_order_status")
+  @@index([reference_code], map: "idx_payments_reference")
+}
+
+/// ==== 7) Giao nhận & Kho (Tuỳ chọn) ====
+model shipments {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id       String           @unique @db.Uuid // Unique = 1-1 relation
+  status         shipment_status  @default(PENDING)
+  assigned_name  String?          @db.VarChar(120)
+  assigned_phone String?          @db.VarChar(20)
+  pickup_eta     DateTime?        @db.Timestamptz
+  delivered_at   DateTime?        @db.Timestamptz
+  proof          Json?            @db.JsonB
+  created_at     DateTime         @default(now()) @db.Timestamptz
+  updated_at     DateTime         @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  order orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([status], map: "idx_shipments_status")
+}
+
+model stock_movements {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  variant_id String   @db.Uuid
+  kind       String   @db.VarChar(16) // 'IMPORT','SALE','ADJUST','RETURN'
+  quantity   Int
+  reason     String?  @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  // Quan hệ
+  variant product_variants @relation(fields: [variant_id], references: [id], onDelete: Cascade)
+
+  @@index([variant_id, created_at], map: "idx_stock_movements_variant")
+}
+
+/// ==== 8) Idempotency keys ====
+model idempotency_keys {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope      String   @db.VarChar(120)
+  key        String   @db.VarChar(64)
+  order_code String?  @db.VarChar(40)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([scope, key])
+  @@index([scope], map: "idx_idem_scope")
+}
+
+/// ==== 9) Sao kê & Nhật ký (Tuỳ chọn) ====
+model bank_transactions {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bank_code          String   @db.VarChar(40)
+  account_no         String   @db.VarChar(40)
+  amount_vnd         Int
+  occurred_at        DateTime @db.Timestamptz
+  transaction_id     String   @unique @db.VarChar(160)
+  narrative          String?  @db.Text
+  raw                Json?    @db.JsonB
+  matched_order_code String?  @db.VarChar(40)
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@index([amount_vnd], map: "idx_bank_tx_amount")
+  @@index([narrative], map: "idx_bank_tx_narrative")
+}
+
+model audit_logs {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_user_id String?  @db.Uuid
+  action        String   @db.VarChar(60)
+  entity        String   @db.VarChar(60)
+  entity_id     String?  @db.Uuid
+  details       Json?    @db.JsonB
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  // Quan hệ
+  actor_user users? @relation(fields: [actor_user_id], references: [id])
+
+  @@index([entity, entity_id], map: "idx_audit_entity")
+}
