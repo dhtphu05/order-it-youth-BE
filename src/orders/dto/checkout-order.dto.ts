@@ -71,6 +71,18 @@ export class CheckoutItemDto {
   @IsInt()
   @Min(1)
   price_version: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Đơn giá mà FE đang hiển thị, dùng để thông báo chi tiết khi giá thay đổi.',
+    type: 'integer',
+    example: 120000,
+  })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  client_price_vnd?: number;
 }
 
 export class CheckoutOrderDto {
@@ -118,7 +130,11 @@ export class CheckoutOrderDto {
   @IsEnum(payment_method)
   payment_method?: payment_method;
 
-  @ApiPropertyOptional({ description: 'Mã coupon nếu có.' })
+  @ApiPropertyOptional({
+    description: 'Mã coupon nếu có.',
+    deprecated: true,
+    example: 'SUMMER2024',
+  })
   @IsOptional()
   @IsString()
   coupon_code?: string;

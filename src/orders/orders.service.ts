@@ -15,7 +15,7 @@ import {
   payment_status,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CheckoutOrderDto, CheckoutItemDto } from './dto/checkout-order.dto';
+import { CheckoutOrderDto } from './dto/checkout-order.dto';
 import { generateOrderCode } from './helpers/order-code.helper';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
@@ -38,6 +38,29 @@ type ComputedItem = {
   quantity: number;
   lineTotal: number;
   componentSnapshot?: unknown;
+};
+
+type VariantRequirement = {
+  variant: VariantWithProduct;
+  quantity: number;
+};
+
+type PriceChangeDetail =
+  | {
+      variant_id: string;
+      old_price_vnd: number | null;
+      new_price_vnd: number;
+    }
+  | {
+      combo_id: string;
+      old_unit_price_vnd: number | null;
+      new_unit_price_vnd: number;
+    };
+
+type StockIssueDetail = {
+  variant_id: string;
+  requested_qty: number;
+  available_stock: number;
 };
 
 @Injectable()
@@ -64,10 +87,10 @@ export class OrdersService {
 
     if (existed) {
       throw new HttpException(
-        {
-          code: 'IDEMPOTENCY_IN_PROGRESS',
-          message: 'Checkout đang được xử lý, vui lòng thử lại sau.',
-        },
+        this.buildErrorPayload(
+          'IDEMPOTENCY_IN_PROGRESS',
+          'Checkout request with this key is already being processed. Please retry later.',
+        ),
         HttpStatus.CONFLICT,
       );
     }
@@ -107,11 +130,98 @@ export class OrdersService {
       combos.map((combo) => [combo.id, combo] as [string, ComboWithComponents]),
     );
 
-    const computedItems = dto.items.map((item) =>
-      item.variant_id
-        ? this.buildVariantItem(item, variantMap)
-        : this.buildComboItem(item, comboMap),
-    );
+    const priceChangeItems: PriceChangeDetail[] = [];
+    const variantRequirements = new Map<string, VariantRequirement>();
+    const computedItems: ComputedItem[] = [];
+
+    for (const item of dto.items) {
+      if (item.variant_id) {
+        const variant = variantMap.get(item.variant_id);
+        if (!variant) {
+          throw new BadRequestException(
+            this.buildErrorPayload(
+              'INVALID_VARIANT',
+              'Biến thể sản phẩm không tồn tại hoặc không khả dụng.',
+            ),
+          );
+        }
+
+        if (BigInt(item.price_version) !== variant.price_version) {
+          priceChangeItems.push({
+            variant_id: variant.id,
+            old_price_vnd: item.client_price_vnd ?? null,
+            new_price_vnd: variant.price_vnd,
+          });
+          continue;
+        }
+
+        computedItems.push(this.buildVariantItem(variant, item.quantity));
+        this.accumulateVariantRequirement(
+          variantRequirements,
+          variant,
+          item.quantity,
+        );
+        continue;
+      }
+
+      const combo = comboMap.get(item.combo_id as string);
+      if (!combo || !combo.is_active) {
+        throw new BadRequestException(
+          this.buildErrorPayload(
+            'INVALID_COMBO',
+            'Combo không khả dụng.',
+          ),
+        );
+      }
+
+      const comboPricing = this.buildComboPricingData(combo);
+
+      if (BigInt(item.price_version) !== combo.price_version) {
+        priceChangeItems.push({
+          combo_id: combo.id,
+          old_unit_price_vnd: item.client_price_vnd ?? null,
+          new_unit_price_vnd: comboPricing.unitPrice,
+        });
+        continue;
+      }
+
+      computedItems.push({
+        comboId: combo.id,
+        title: combo.name,
+        unitPrice: comboPricing.unitPrice,
+        quantity: item.quantity,
+        lineTotal: comboPricing.unitPrice * item.quantity,
+        componentSnapshot: comboPricing.componentSnapshot,
+      });
+
+      for (const component of combo.components) {
+        const componentVariant = component.variant as VariantWithProduct;
+        const requiredQty = item.quantity * component.quantity;
+        this.accumulateVariantRequirement(
+          variantRequirements,
+          componentVariant,
+          requiredQty,
+        );
+      }
+    }
+
+    if (priceChangeItems.length) {
+      this.throwPriceChanged(priceChangeItems);
+    }
+
+    if (!computedItems.length) {
+      throw new BadRequestException(
+        this.buildErrorPayload(
+          'NO_VALID_ITEMS',
+          'Giỏ hàng không có sản phẩm hợp lệ.',
+        ),
+      );
+    }
+
+    const stockIssues = this.detectStockIssues(variantRequirements);
+    if (stockIssues.length) {
+      this.throwOutOfStock(stockIssues);
+    }
 
     const subtotal = computedItems.reduce(
       (sum, item) => sum + item.lineTotal,
@@ -132,6 +242,30 @@ export class OrdersService {
 
     try {
       const order = await this.prisma.$transaction(async (tx) => {
+        for (const requirement of variantRequirements.values()) {
+          const updateResult = await tx.product_variants.updateMany({
+            where: {
+              id: requirement.variant.id,
+              stock: { gte: requirement.quantity },
+            },
+            data: { stock: { decrement: requirement.quantity } },
+          });
+
+          if (updateResult.count !== 1) {
+            const latest = await tx.product_variants.findUnique({
+              where: { id: requirement.variant.id },
+              select: { stock: true },
+            });
+            this.throwOutOfStock([
+              {
+                variant_id: requirement.variant.id,
+                requested_qty: requirement.quantity,
+                available_stock: latest?.stock ?? 0,
+              },
+            ]);
+          }
+        }
+
         const createdOrder = await tx.orders.create({
           data: {
             code: orderCode,
@@ -155,8 +289,7 @@ export class OrdersService {
                 unit_price_vnd: item.unitPrice,
                 quantity: item.quantity,
                 line_total_vnd: item.lineTotal,
-                component_snapshot:
-                  item.componentSnapshot ?? undefined,
+                component_snapshot: item.componentSnapshot ?? undefined,
               })),
             },
           },
@@ -203,55 +336,47 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException({
-        code: 'ORDER_NOT_FOUND',
-        message: 'Order not found',
-      });
-    }
-
-    if (order.payment_status !== payment_status.PENDING) {
-      throw new BadRequestException({
-        code: 'ORDER_NOT_PENDING',
-        message: 'Order is not in PENDING state',
-      });
+      throw new NotFoundException(
+        this.buildErrorPayload('ORDER_NOT_FOUND', 'Order not found'),
+      );
     }
 
     const bankCode = this.config.get<string>('PAYMENT_BANK_CODE');
-    const accountNo = this.config.get<string>('PAYMENT_ACCOUNT_NO');
+    const bankName = this.config.get<string>('PAYMENT_BANK_NAME');
+    const accountNumber =
+      this.config.get<string>('PAYMENT_ACCOUNT_NUMBER') ??
+      this.config.get<string>('PAYMENT_ACCOUNT_NO');
     const accountName = this.config.get<string>('PAYMENT_ACCOUNT_NAME');
 
-    if (!bankCode || !accountNo || !accountName) {
-      throw new InternalServerErrorException({
-        code: 'PAYMENT_ACCOUNT_NOT_CONFIGURED',
-        message: 'Payment account information is missing.',
-      });
+    if (!bankCode || !bankName || !accountNumber || !accountName) {
+      throw new InternalServerErrorException(
+        this.buildErrorPayload(
+          'PAYMENT_ACCOUNT_NOT_CONFIGURED',
+          'Payment account information is missing.',
+        ),
+      );
     }
 
     const transferContent = order.payment_reference ?? order.code;
 
     return {
       order_code: order.code,
+      payment_status: order.payment_status,
       amount_vnd: order.grand_total_vnd,
-      bank_code: bankCode,
-      account_no: accountNo,
-      account_name: accountName,
       transfer_content: transferContent,
+      bank: {
+        code: bankCode,
+        name: bankName,
+        account_number: accountNumber,
+        account_name: accountName,
+      },
     };
   }
 
   private buildVariantItem(
-    item: CheckoutItemDto,
-    variantMap: Map<string, VariantWithProduct>,
+    variant: VariantWithProduct,
+    quantity: number,
   ): ComputedItem {
-    const variant = variantMap.get(item.variant_id as string);
-    if (!variant) {
-      throw new BadRequestException('Biến thể sản phẩm không tồn tại.');
-    }
-
-    if (BigInt(item.price_version) !== variant.price_version) {
-      this.throwPriceChanged();
-    }
-
     const unitPrice = variant.price_vnd;
     const title = this.buildVariantTitle(variant);
 
@@ -259,48 +384,29 @@ export class OrdersService {
       variantId: variant.id,
       title,
       unitPrice,
-      quantity: item.quantity,
-      lineTotal: unitPrice * item.quantity,
+      quantity,
+      lineTotal: unitPrice * quantity,
     };
   }
 
-  private buildComboItem(
-    item: CheckoutItemDto,
-    comboMap: Map<string, ComboWithComponents>,
-  ): ComputedItem {
-    const combo = comboMap.get(item.combo_id as string);
-    if (!combo || !combo.is_active) {
-      throw new BadRequestException('Combo không khả dụng.');
-    }
-
-    if (BigInt(item.price_version) !== combo.price_version) {
-      this.throwPriceChanged();
-    }
-
-    const componentTotal = combo.components.reduce((sum, component) => {
+  private buildComboPricingData(combo: ComboWithComponents) {
+    let componentTotal = 0;
+    const componentSnapshot = combo.components.map((component) => {
       const componentPrice =
         component.unit_price_override_vnd ?? component.variant.price_vnd;
-      return sum + componentPrice * component.quantity;
-    }, 0);
-
-    const unitPrice = this.calculateComboPrice(combo, componentTotal);
-    const title = combo.name;
-
-    return {
-      comboId: combo.id,
-      title,
-      unitPrice,
-      quantity: item.quantity,
-      lineTotal: unitPrice * item.quantity,
-      componentSnapshot: combo.components.map((component) => ({
+      componentTotal += componentPrice * component.quantity;
+      return {
         variant_id: component.variant_id,
         sku: component.variant.sku,
         quantity: component.quantity,
-        unit_price_vnd:
-          component.unit_price_override_vnd ?? component.variant.price_vnd,
+        unit_price_vnd: componentPrice,
         price_version: Number(component.variant.price_version),
-      })),
-    };
+      };
+    });
+
+    const unitPrice = this.calculateComboPrice(combo, componentTotal);
+
+    return { unitPrice, componentSnapshot };
   }
 
   private calculateComboPrice(
@@ -340,14 +446,67 @@ export class OrdersService {
     return options ? `${baseName} ${options}` : baseName;
   }
 
-  private throwPriceChanged(): never {
+  private accumulateVariantRequirement(
+    requirements: Map<string, VariantRequirement>,
+    variant: VariantWithProduct,
+    quantity: number,
+  ) {
+    const existing = requirements.get(variant.id);
+    if (existing) {
+      existing.quantity += quantity;
+      return;
+    }
+    requirements.set(variant.id, { variant, quantity });
+  }
+
+  private detectStockIssues(
+    requirements: Map<string, VariantRequirement>,
+  ): StockIssueDetail[] {
+    const shortages: StockIssueDetail[] = [];
+    for (const requirement of requirements.values()) {
+      if (requirement.variant.stock < requirement.quantity) {
+        shortages.push({
+          variant_id: requirement.variant.id,
+          requested_qty: requirement.quantity,
+          available_stock: requirement.variant.stock,
+        });
+      }
+    }
+    return shortages;
+  }
+
+  private throwPriceChanged(items: PriceChangeDetail[]): never {
     throw new HttpException(
-      {
-        code: 'PRICE_CHANGED',
-        message: 'Giá sản phẩm đã thay đổi, vui lòng tải lại giỏ hàng.',
-      },
+      this.buildErrorPayload(
+        'PRICE_CHANGED',
+        'Giá sản phẩm đã thay đổi, vui lòng xem lại giỏ hàng.',
+        { items },
+      ),
       HttpStatus.CONFLICT,
     );
+  }
+
+  private throwOutOfStock(items: StockIssueDetail[]): never {
+    throw new HttpException(
+      this.buildErrorPayload(
+        'OUT_OF_STOCK',
+        'Một số sản phẩm không đủ tồn kho.',
+        { items },
+      ),
+      HttpStatus.CONFLICT,
+    );
+  }
+
+  private buildErrorPayload(
+    errorCode: string,
+    message: string,
+    extras?: Record<string, unknown>,
+  ) {
+    return {
+      error_code: errorCode,
+      message,
+      ...(extras ?? {}),
+    };
   }
 
   private toOrderResponse(order: OrderWithItems): OrderResponseDto {

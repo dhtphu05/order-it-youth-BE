@@ -13,6 +13,7 @@ import {
   AdminUpdateComboDto,
 } from './dto/admin-combo.dto';
 import { CloudinaryService } from '../../cloudinary/cloudinary.service';
+import { isUUID } from 'class-validator';
 
 @Injectable()
 export class AdminCombosService {
@@ -48,6 +49,7 @@ export class AdminCombosService {
   }
 
   async getById(id: string) {
+    this.assertUuid(id, 'comboId');
     const combo = await this.prisma.combos.findUnique({
       where: { id },
       include: this.comboInclude(),
@@ -87,6 +89,7 @@ export class AdminCombosService {
   }
 
   async update(id: string, dto: AdminUpdateComboDto) {
+    this.assertUuid(id, 'comboId');
     const combo = await this.prisma.combos.findUnique({
       where: { id },
       include: { components: true },
@@ -182,12 +185,14 @@ export class AdminCombosService {
   }
 
   async delete(id: string) {
+    this.assertUuid(id, 'comboId');
     await this.ensureCombo(id);
     await this.prisma.combos.delete({ where: { id } });
     return { ok: true };
   }
 
   async uploadImage(comboId: string, file: Express.Multer.File) {
+    this.assertUuid(comboId, 'comboId');
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -222,6 +227,7 @@ export class AdminCombosService {
   }
 
   private async ensureCombo(id: string) {
+    this.assertUuid(id, 'comboId');
     const combo = await this.prisma.combos.findUnique({ where: { id } });
     if (!combo) {
       throw new NotFoundException('Combo not found');
@@ -255,5 +261,11 @@ export class AdminCombosService {
 
   private generatePriceVersion() {
     return BigInt(Date.now());
+  }
+
+  private assertUuid(id: string, field = 'id') {
+    if (!isUUID(id)) {
+      throw new BadRequestException(`ID không hợp lệ: ${field}`);
+    }
   }
 }

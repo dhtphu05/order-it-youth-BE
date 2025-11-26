@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Express } from 'express';
 import { Prisma } from '@prisma/client';
+import { isUUID } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   AdminCreateProductDto,
@@ -55,6 +56,7 @@ export class AdminProductsService {
   }
 
   async getById(id: string) {
+    this.assertUuid(id, 'productId');
     const product = await this.prisma.products.findUnique({
       where: { id },
       include: { variants: { orderBy: { created_at: 'asc' } } },
@@ -89,6 +91,7 @@ export class AdminProductsService {
   }
 
   async update(id: string, dto: AdminUpdateProductDto) {
+    this.assertUuid(id, 'productId');
     await this.ensureProduct(id);
     const data: Prisma.productsUpdateInput = {};
     if (dto.name !== undefined) {
@@ -110,12 +113,28 @@ export class AdminProductsService {
   }
 
   async delete(id: string) {
+    this.assertUuid(id, 'productId');
     await this.ensureProduct(id);
+    const variantIds = await this.prisma.product_variants.findMany({
+      where: { product_id: id },
+      select: { id: true },
+    });
+    if (variantIds.length) {
+      const comboUsage = await this.prisma.combo_components.count({
+        where: { variant_id: { in: variantIds.map((variant) => variant.id) } },
+      });
+      if (comboUsage > 0) {
+        throw new BadRequestException(
+          'Không thể xoá sản phẩm vì đang được sử dụng trong combo.',
+        );
+      }
+    }
     await this.prisma.products.delete({ where: { id } });
     return { ok: true };
   }
 
   async createVariant(productId: string, dto: AdminCreateVariantDto) {
+    this.assertUuid(productId, 'productId');
     await this.ensureProduct(productId);
     await this.ensureSkuNotTaken(productId, dto.sku);
 
@@ -133,6 +152,8 @@ export class AdminProductsService {
     variantId: string,
     dto: AdminUpdateVariantDto,
   ) {
+    this.assertUuid(productId, 'productId');
+    this.assertUuid(variantId, 'variantId');
     const variant = await this.ensureVariant(productId, variantId);
     const data: Prisma.product_variantsUpdateInput = {};
 
@@ -167,12 +188,15 @@ export class AdminProductsService {
   }
 
   async deleteVariant(productId: string, variantId: string) {
+    this.assertUuid(productId, 'productId');
+    this.assertUuid(variantId, 'variantId');
     await this.ensureVariant(productId, variantId);
     await this.prisma.product_variants.delete({ where: { id: variantId } });
     return { ok: true };
   }
 
   async uploadImage(productId: string, file: Express.Multer.File) {
+    this.assertUuid(productId, 'productId');
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -195,6 +219,7 @@ export class AdminProductsService {
   }
 
   private async ensureProduct(id: string) {
+    this.assertUuid(id, 'productId');
     const product = await this.prisma.products.findUnique({ where: { id } });
     if (!product) {
       throw new NotFoundException('Product not found');
@@ -203,6 +228,8 @@ export class AdminProductsService {
   }
 
   private async ensureVariant(productId: string, variantId: string) {
+    this.assertUuid(productId, 'productId');
+    this.assertUuid(variantId, 'variantId');
     const variant = await this.prisma.product_variants.findFirst({
       where: { id: variantId, product_id: productId },
     });
@@ -241,5 +268,11 @@ export class AdminProductsService {
 
   private generatePriceVersion() {
     return BigInt(Date.now());
+  }
+
+  private assertUuid(id: string, field = 'id') {
+    if (!isUUID(id)) {
+      throw new BadRequestException(`ID không hợp lệ: ${field}`);
+    }
   }
 }

@@ -9,6 +9,12 @@ async function bootstrap() {
   app.enableCors();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
+  if (!(BigInt.prototype as any).toJSON) {
+    (BigInt.prototype as any).toJSON = function () {
+      return Number(this);
+    };
+  }
+
   const config = new DocumentBuilder()
     .setTitle('Order IT Youth – Admin API')
     .setDescription(
