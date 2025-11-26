@@ -1,7 +1,6 @@
-import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsInt,
   IsNotEmpty,
@@ -46,7 +45,34 @@ export class AdminCreateVariantDto {
   stock: number;
 }
 
-export class AdminUpdateVariantDto extends PartialType(AdminCreateVariantDto) {}
+export class AdminUpdateVariantDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  sku?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  option1?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  option2?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  priceVnd?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stock?: number;
+}
 
 export class AdminCreateProductDto {
   @IsString()
@@ -63,10 +89,23 @@ export class AdminCreateProductDto {
   isDonationItem?: boolean;
 
   @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => AdminCreateVariantDto)
-  @ArrayMaxSize(50)
   variants?: AdminCreateVariantDto[];
 }
 
-export class AdminUpdateProductDto extends PartialType(AdminCreateProductDto) {}
+export class AdminUpdateProductDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isDonationItem?: boolean;
+}

@@ -131,7 +131,7 @@ export class AdminProductsService {
     const variant = await this.ensureVariant(productId, variantId);
     const data: Prisma.product_variantsUpdateInput = {};
 
-    if (dto.sku && dto.sku !== variant.sku) {
+    if (dto.sku !== undefined && dto.sku !== variant.sku) {
       await this.ensureSkuNotTaken(productId, dto.sku);
       data.sku = dto.sku;
     }

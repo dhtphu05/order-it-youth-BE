@@ -1,15 +1,14 @@
 import { combo_pricing_type } from '@prisma/client';
-import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
   Min,
   ValidateNested,
@@ -23,7 +22,8 @@ export class AdminComboListQueryDto extends PaginationQueryDto {
 }
 
 export class AdminComboComponentDto {
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
   variantId: string;
 
   @Type(() => Number)
@@ -40,13 +40,13 @@ export class AdminComboComponentDto {
 
 export class AdminCreateComboDto {
   @IsString()
-  @IsNotEmpty()
   @MaxLength(160)
+  @IsNotEmpty()
   name: string;
 
   @IsString()
-  @IsNotEmpty()
   @MaxLength(160)
+  @IsNotEmpty()
   slug: string;
 
   @IsOptional()
@@ -77,14 +77,64 @@ export class AdminCreateComboDto {
   @IsBoolean()
   isActive?: boolean;
 
+  @IsOptional()
+  @IsString()
+  coverImage?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => AdminComboComponentDto)
-  @ArrayMinSize(1)
   components: AdminComboComponentDto[];
 }
 
-export class AdminUpdateComboDto extends PartialType(AdminCreateComboDto) {
+export class AdminUpdateComboDto {
   @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(combo_pricing_type)
+  pricingType?: combo_pricing_type;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  listPriceVnd?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  amountOffVnd?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  percentOff?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  coverImage?: string;
+
+  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => AdminComboComponentDto)
   components?: AdminComboComponentDto[];

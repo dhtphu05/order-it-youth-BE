@@ -27,13 +27,11 @@ export class AdminCombosService {
         }
       : undefined;
 
-    const include = this.comboInclude();
-
     const [total, data] = await Promise.all([
       this.prisma.combos.count({ where }),
       this.prisma.combos.findMany({
         where,
-        include,
+        include: this.comboInclude(),
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -146,8 +144,6 @@ export class AdminCombosService {
       data.price_version = this.generatePriceVersion();
     }
 
-    const include = this.comboInclude();
-
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.combos.update({
         where: { id },
@@ -170,7 +166,10 @@ export class AdminCombosService {
         );
       }
 
-      return tx.combos.findUnique({ where: { id: updated.id }, include });
+      return tx.combos.findUnique({
+        where: { id: updated.id },
+        include: this.comboInclude(),
+      });
     });
 
     return result;
@@ -190,7 +189,6 @@ export class AdminCombosService {
             include: { product: true },
           },
         },
-        orderBy: { created_at: 'asc' },
       },
     };
   }
