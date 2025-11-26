@@ -10,9 +10,20 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   const config = new DocumentBuilder()
-    .setTitle('Order It Youth API')
-    .setDescription('Public store + checkout endpoints.')
-    .setVersion('1.0')
+    .setTitle('Order IT Youth – Admin API')
+    .setDescription(
+      'Admin API for managing catalog, combos, orders and payments for the Order IT Youth charity store.',
+    )
+    .setVersion('1.0.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        in: 'header',
+      },
+      'admin-jwt',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document, {
