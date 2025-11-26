@@ -7,10 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -125,5 +129,40 @@ export class AdminCombosController {
   @ApiResponse({ status: 404, description: 'Combo not found.' })
   remove(@Param('id') id: string) {
     return this.service.delete(id);
+  }
+
+  @Patch(':id/image')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload/replace combo cover image',
+    description:
+      'Upload an image to Cloudinary and set combo.cover_image_url (coverImageUrl).',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Combo ID (UUID).',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Combo cover image file.',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Combo image updated.' })
+  @ApiResponse({ status: 404, description: 'Combo not found.' })
+  uploadComboImage(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.service.uploadImage(id, file);
   }
 }

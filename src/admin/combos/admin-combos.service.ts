@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -10,10 +11,14 @@ import {
   AdminCreateComboDto,
   AdminUpdateComboDto,
 } from './dto/admin-combo.dto';
+import { CloudinaryService } from '../../cloudinary/cloudinary.service';
 
 @Injectable()
 export class AdminCombosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   async list(query: AdminComboListQueryDto) {
     const page = query.page ?? 1;
@@ -179,6 +184,28 @@ export class AdminCombosService {
     await this.ensureCombo(id);
     await this.prisma.combos.delete({ where: { id } });
     return { ok: true };
+  }
+
+  async uploadImage(comboId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const combo = await this.prisma.combos.findUnique({
+      where: { id: comboId },
+    });
+    if (!combo) {
+      throw new NotFoundException('Combo not found');
+    }
+
+    const { url } = await this.cloudinary.uploadImage(file, {
+      folder: 'order-it-youth/combos',
+    });
+
+    return this.prisma.combos.update({
+      where: { id: comboId },
+      data: { cover_image_url: url },
+    });
   }
 
   private comboInclude() {

@@ -7,10 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -191,5 +195,39 @@ export class AdminProductsController {
     @Param('variantId') variantId: string,
   ) {
     return this.service.deleteVariant(productId, variantId);
+  }
+
+  @Patch(':id/image')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload/replace product image',
+    description: 'Upload an image to Cloudinary and set product.image_url.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Product ID (UUID).',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Product image file.',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Product image updated.' })
+  @ApiResponse({ status: 404, description: 'Product not found.' })
+  uploadProductImage(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.service.uploadImage(id, file);
   }
 }

@@ -13,10 +13,14 @@ import {
   AdminUpdateProductDto,
   AdminUpdateVariantDto,
 } from './dto/admin-product.dto';
+import { CloudinaryService } from '../../cloudinary/cloudinary.service';
 
 @Injectable()
 export class AdminProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   async list(query: AdminProductListQueryDto) {
     const page = query.page ?? 1;
@@ -165,6 +169,28 @@ export class AdminProductsService {
     await this.ensureVariant(productId, variantId);
     await this.prisma.product_variants.delete({ where: { id: variantId } });
     return { ok: true };
+  }
+
+  async uploadImage(productId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const product = await this.prisma.products.findUnique({
+      where: { id: productId },
+    });
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const { url } = await this.cloudinary.uploadImage(file, {
+      folder: 'order-it-youth/products',
+    });
+
+    return this.prisma.products.update({
+      where: { id: productId },
+      data: { image_url: url },
+    });
   }
 
   private async ensureProduct(id: string) {

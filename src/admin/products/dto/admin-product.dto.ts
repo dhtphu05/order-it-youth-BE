@@ -142,6 +142,13 @@ export class AdminCreateProductDto {
     type: [AdminCreateVariantDto],
   })
   variants?: AdminCreateVariantDto[];
+
+  @ApiPropertyOptional({
+    description: 'Main image URL of the product stored after upload.',
+    example: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+    readOnly: true,
+  })
+  imageUrl?: string;
 }
 
 export class AdminUpdateProductDto {
@@ -160,4 +167,11 @@ export class AdminUpdateProductDto {
   @IsBoolean()
   @ApiPropertyOptional({ description: 'Updated donation flag.' })
   isDonationItem?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Main image URL of the product stored after upload.',
+    example: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+    readOnly: true,
+  })
+  imageUrl?: string;
 }

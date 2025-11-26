@@ -144,6 +144,13 @@ export class AdminCreateComboDto {
     type: [AdminComboComponentDto],
   })
   components: AdminComboComponentDto[];
+
+  @ApiPropertyOptional({
+    description: 'Cover image URL stored after upload.',
+    example: 'https://res.cloudinary.com/demo/image/upload/combo-cover.jpg',
+    readOnly: true,
+  })
+  coverImageUrl?: string;
 }
 
 export class AdminUpdateComboDto {
@@ -218,4 +225,11 @@ export class AdminUpdateComboDto {
     type: [AdminComboComponentDto],
   })
   components?: AdminComboComponentDto[];
+
+  @ApiPropertyOptional({
+    description: 'Cover image URL stored after upload.',
+    example: 'https://res.cloudinary.com/demo/image/upload/combo-cover.jpg',
+    readOnly: true,
+  })
+  coverImageUrl?: string;
 }
