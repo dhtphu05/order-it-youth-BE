@@ -4,7 +4,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UploadApiOptions, v2 as cloudinary } from 'cloudinary';
+import { UploadApiOptions, UploadApiResponse, v2 as cloudinary } from 'cloudinary';
+import type { Express } from 'express';
 
 @Injectable()
 export class CloudinaryService {
@@ -45,10 +46,12 @@ export class CloudinaryService {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         uploadOptions,
-        (error, result) => {
+        (error: unknown, result?: UploadApiResponse) => {
           if (error || !result) {
             this.logger.error(
-              `Cloudinary upload failed: ${error?.message ?? 'Unknown error'}`,
+              `Cloudinary upload failed: ${
+                (error as Error)?.message ?? 'Unknown error'
+              }`,
             );
             reject(
               new InternalServerErrorException(
