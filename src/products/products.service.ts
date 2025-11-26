@@ -38,6 +38,7 @@ export class ProductsService {
       include: { components: { include: { variant: true } } },
       orderBy: { name: 'asc' },
     });
+    console.log(combos);
 
     return combos.map((combo) => ({
       id: combo.id,
