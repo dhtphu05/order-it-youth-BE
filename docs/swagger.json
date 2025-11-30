@@ -1,0 +1,2479 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_ping",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/products": {
+      "get": {
+        "operationId": "ProductsController_listProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Danh sách sản phẩm cùng các biến thể.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Danh sách sản phẩm + variants",
+        "tags": [
+          "Products"
+        ]
+      }
+    },
+    "/api/combos": {
+      "get": {
+        "operationId": "CombosController_listCombos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Danh sách combo đang hoạt động.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ComboResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Danh sách combo + components",
+        "tags": [
+          "Combos"
+        ]
+      }
+    },
+    "/api/orders/checkout": {
+      "post": {
+        "operationId": "OrdersController_checkout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_VARIANT, INVALID_COMBO, NO_VALID_ITEMS, or other validation errors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS or PRICE_CHANGED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Khởi tạo checkout công khai",
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
+    "/api/orders/{code}/payment-intent": {
+      "get": {
+        "operationId": "OrdersController_getPaymentIntent",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thông tin thanh toán hoặc trạng thái hiện tại của đơn hàng.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ORDER_NOT_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lấy thông tin thanh toán VietQR",
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
+    "/api/payments/confirm": {
+      "post": {
+        "description": "Admin xác nhận thanh toán chuyển khoản cho một order dựa trên sao kê ngân hàng.",
+        "operationId": "PaymentsController_confirm",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment confirmed and order marked as paid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRecordDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "AMOUNT_MISMATCH or ORDER_NOT_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DUPLICATE_TRANSACTION_ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Confirm payment manually",
+        "tags": [
+          "Admin – Payments"
+        ]
+      }
+    },
+    "/api/bank-transactions/manual-create": {
+      "post": {
+        "description": "Admin nhập tay dữ liệu giao dịch từ sao kê; endpoint này chỉ lưu giao dịch và KHÔNG tự đối soát hoặc xác nhận đơn hàng.",
+        "operationId": "BankTransactionsController_manualCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualCreateBankTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bank transaction created successfully."
+          },
+          "400": {
+            "description": "Validation or parsing error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate transaction_id detected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Manually register a bank transaction",
+        "tags": [
+          "Admin – Bank Transactions"
+        ]
+      }
+    },
+    "/api/admin/products": {
+      "get": {
+        "description": "Get a paginated list of products with optional search by name, description, or SKU.",
+        "operationId": "AdminProductsController_list",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search keyword for product name or SKU.",
+            "schema": {
+              "example": "áo đồng phục",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Items per page (default 20, max 100).",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (default 1).",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated products returned."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "List products",
+        "tags": [
+          "Admin – Products"
+        ]
+      },
+      "post": {
+        "description": "Create a product with optional initial variants.",
+        "operationId": "AdminProductsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created."
+          },
+          "400": {
+            "description": "Validation error."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Create product",
+        "tags": [
+          "Admin – Products"
+        ]
+      }
+    },
+    "/api/admin/products/{id}": {
+      "get": {
+        "description": "Return a single product including its variants.",
+        "operationId": "AdminProductsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product found."
+          },
+          "404": {
+            "description": "Product not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Get product detail",
+        "tags": [
+          "Admin – Products"
+        ]
+      },
+      "patch": {
+        "description": "Update product name, description or donation flag.",
+        "operationId": "AdminProductsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated."
+          },
+          "404": {
+            "description": "Product not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Update product",
+        "tags": [
+          "Admin – Products"
+        ]
+      },
+      "delete": {
+        "description": "Delete a product (only allowed if business rules allow removing it).",
+        "operationId": "AdminProductsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product deleted."
+          },
+          "404": {
+            "description": "Product not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Delete product",
+        "tags": [
+          "Admin – Products"
+        ]
+      }
+    },
+    "/api/admin/products/{productId}/variants": {
+      "post": {
+        "description": "Add a new variant for the specified product.",
+        "operationId": "AdminProductsController_addVariant",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "description": "Parent product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateVariantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Variant created."
+          },
+          "404": {
+            "description": "Product not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Create variant",
+        "tags": [
+          "Admin – Products"
+        ]
+      }
+    },
+    "/api/admin/products/{productId}/variants/{variantId}": {
+      "patch": {
+        "description": "Update SKU, options, price or stock for a variant.",
+        "operationId": "AdminProductsController_updateVariant",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "description": "Parent product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variantId",
+            "required": true,
+            "in": "path",
+            "description": "Variant ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdateVariantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Variant updated."
+          },
+          "404": {
+            "description": "Product or variant not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Update variant",
+        "tags": [
+          "Admin – Products"
+        ]
+      },
+      "delete": {
+        "description": "Remove a variant from the specified product.",
+        "operationId": "AdminProductsController_deleteVariant",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "description": "Parent product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variantId",
+            "required": true,
+            "in": "path",
+            "description": "Variant ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Variant deleted."
+          },
+          "404": {
+            "description": "Product or variant not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Delete variant",
+        "tags": [
+          "Admin – Products"
+        ]
+      }
+    },
+    "/api/admin/products/{id}/image": {
+      "patch": {
+        "description": "Upload an image to Cloudinary and set product.image_url.",
+        "operationId": "AdminProductsController_uploadProductImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Product ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Product image file."
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product image updated."
+          },
+          "404": {
+            "description": "Product not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Upload/replace product image",
+        "tags": [
+          "Admin – Products"
+        ]
+      }
+    },
+    "/api/admin/combos": {
+      "get": {
+        "description": "Get a paginated list of combos with optional search and active filters.",
+        "operationId": "AdminCombosController_list",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search keyword for combo name or slug.",
+            "schema": {
+              "example": "combo ao non",
+              "type": "string"
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "Filter combos by active status.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Items per page (default 20, max 100).",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (default 1).",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated combos returned."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "List combos",
+        "tags": [
+          "Admin – Combos"
+        ]
+      },
+      "post": {
+        "description": "Create a combo along with its components configuration.",
+        "operationId": "AdminCombosController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateComboDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Combo created."
+          },
+          "400": {
+            "description": "Validation or slug conflict."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Create combo",
+        "tags": [
+          "Admin – Combos"
+        ]
+      }
+    },
+    "/api/admin/combos/{id}": {
+      "get": {
+        "description": "Return combo detail with its components and variants.",
+        "operationId": "AdminCombosController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Combo ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Combo found."
+          },
+          "404": {
+            "description": "Combo not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Get combo detail",
+        "tags": [
+          "Admin – Combos"
+        ]
+      },
+      "patch": {
+        "description": "Update combo metadata, pricing, activation status or components.",
+        "operationId": "AdminCombosController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Combo ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdateComboDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Combo updated."
+          },
+          "404": {
+            "description": "Combo not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Update combo",
+        "tags": [
+          "Admin – Combos"
+        ]
+      },
+      "delete": {
+        "description": "Delete a combo when it is no longer used.",
+        "operationId": "AdminCombosController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Combo ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Combo deleted."
+          },
+          "404": {
+            "description": "Combo not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Delete combo",
+        "tags": [
+          "Admin – Combos"
+        ]
+      }
+    },
+    "/api/admin/combos/{id}/image": {
+      "patch": {
+        "description": "Upload an image to Cloudinary and set combo.cover_image_url (coverImageUrl).",
+        "operationId": "AdminCombosController_uploadComboImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Combo ID (UUID).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Combo cover image file."
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Combo image updated."
+          },
+          "404": {
+            "description": "Combo not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Upload/replace combo cover image",
+        "tags": [
+          "Admin – Combos"
+        ]
+      }
+    },
+    "/api/admin/orders": {
+      "get": {
+        "description": "Get a paginated list of orders with filters for payment status, fulfillment type, search keyword and date range.",
+        "operationId": "AdminOrdersController_list",
+        "parameters": [
+          {
+            "name": "paymentStatus",
+            "required": false,
+            "in": "query",
+            "description": "Filter by payment status (PENDING, SUCCESS, FAILED, REFUNDED).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "SUCCESS",
+                "FAILED",
+                "REFUNDED"
+              ]
+            }
+          },
+          {
+            "name": "fulfillmentType",
+            "required": false,
+            "in": "query",
+            "description": "Filter by fulfillment type (DELIVERY, PICKUP_SCHOOL).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DELIVERY",
+                "PICKUP_SCHOOL"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search keyword for order code, customer name, phone or email.",
+            "schema": {
+              "example": "OIY-2026-00045",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Start date (ISO string).",
+            "schema": {
+              "example": "2026-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "End date (ISO string).",
+            "schema": {
+              "example": "2026-01-31T23:59:59Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Items per page (default 20, max 100).",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (default 1).",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated orders returned."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "List orders",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}": {
+      "get": {
+        "description": "Fetch an order by its code with items, payments and shipment.",
+        "operationId": "AdminOrdersController_get",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code (e.g. OIY-2026-00045).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order detail returned."
+          },
+          "404": {
+            "description": "Order not found."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Get order detail",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}/confirm-payment": {
+      "post": {
+        "description": "Confirm an offline payment for an order. Updates payments, order status and audit log.",
+        "operationId": "AdminOrdersController_confirmPayment",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code to confirm payment for.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminConfirmPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment confirmed and order marked as paid."
+          },
+          "400": {
+            "description": "Amount mismatch or invalid data."
+          },
+          "404": {
+            "description": "Order not found."
+          },
+          "409": {
+            "description": "Duplicate transaction ID or order already processed."
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Confirm payment manually",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}/fulfilment-start": {
+      "post": {
+        "description": "Transition an order from PAID to FULFILLING before delivery attempts.",
+        "operationId": "AdminOrdersController_startFulfilment",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code to transition.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminStartFulfilmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order marked as fulfilling.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_STATUS_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Start fulfilment",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}/fulfilment-fail": {
+      "post": {
+        "description": "Record a failed delivery attempt (e.g., customer no-show) while in FULFILLING.",
+        "operationId": "AdminOrdersController_failFulfilment",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code that encountered a failed delivery.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminFailFulfilmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order marked as delivery failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_STATUS_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Record failed delivery",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}/fulfilment-retry": {
+      "post": {
+        "description": "Move an order from DELIVERY_FAILED back to FULFILLING.",
+        "operationId": "AdminOrdersController_retryFulfilment",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code to retry.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRetryFulfilmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order marked as fulfilling again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_STATUS_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Retry fulfilment",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}/fulfilment-complete": {
+      "post": {
+        "description": "Mark a fulfilling order as fulfilled and record the completion time.",
+        "operationId": "AdminOrdersController_completeFulfilment",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code to mark as fulfilled.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCompleteFulfilmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order marked as fulfilled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_STATUS_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Complete fulfilment",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    },
+    "/api/admin/orders/{code}/cancel": {
+      "post": {
+        "description": "Cancel a pending order and write an audit log.",
+        "operationId": "AdminOrdersController_cancel",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "Order code to cancel.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCancelOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ORDER_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_STATUS_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin-jwt": []
+          }
+        ],
+        "summary": "Cancel order",
+        "tags": [
+          "Admin – Orders"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Order IT Youth – Admin API",
+    "description": "Admin API for managing catalog, combos, orders and payments for the Order IT Youth charity store.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "admin-jwt": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "ProductVariantDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "option1": {
+            "type": "object",
+            "nullable": true
+          },
+          "option2": {
+            "type": "object",
+            "nullable": true
+          },
+          "price_vnd": {
+            "type": "integer"
+          },
+          "price_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stock": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "sku",
+          "price_vnd",
+          "price_version",
+          "stock"
+        ]
+      },
+      "ProductResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "object",
+            "nullable": true
+          },
+          "is_donation_item": {
+            "type": "boolean"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductVariantDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_donation_item",
+          "variants"
+        ]
+      },
+      "ComboComponentVariantDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "option1": {
+            "type": "object",
+            "nullable": true
+          },
+          "option2": {
+            "type": "object",
+            "nullable": true
+          },
+          "price_vnd": {
+            "type": "integer"
+          },
+          "price_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "sku",
+          "price_vnd",
+          "price_version"
+        ]
+      },
+      "ComboComponentDto": {
+        "type": "object",
+        "properties": {
+          "variant": {
+            "$ref": "#/components/schemas/ComboComponentVariantDto"
+          },
+          "quantity": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "variant",
+          "quantity"
+        ]
+      },
+      "ComboResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "pricing_type": {
+            "type": "string",
+            "enum": [
+              "FIXED_PRICE",
+              "SUM_COMPONENTS",
+              "SUM_MINUS_AMOUNT",
+              "SUM_MINUS_PERCENT"
+            ]
+          },
+          "list_price_vnd": {
+            "type": "integer"
+          },
+          "amount_off_vnd": {
+            "type": "integer"
+          },
+          "percent_off": {
+            "type": "integer"
+          },
+          "price_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComboComponentDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "pricing_type",
+          "list_price_vnd",
+          "amount_off_vnd",
+          "percent_off",
+          "price_version",
+          "components"
+        ]
+      },
+      "CheckoutItemDto": {
+        "type": "object",
+        "properties": {
+          "variant_id": {
+            "type": "string",
+            "description": "ID của biến thể sản phẩm, chỉ truyền nếu item là variant.",
+            "format": "uuid"
+          },
+          "combo_id": {
+            "type": "string",
+            "description": "ID của combo, chỉ truyền nếu item là combo.",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "price_version": {
+            "type": "integer",
+            "description": "Version giá mà FE lưu, dùng để kiểm tra lệch giá.",
+            "format": "int64",
+            "minimum": 1,
+            "example": 1700000000
+          },
+          "client_price_vnd": {
+            "type": "integer",
+            "description": "Đơn giá mà FE đang hiển thị, dùng để thông báo chi tiết khi giá thay đổi.",
+            "example": 120000
+          }
+        },
+        "required": [
+          "quantity",
+          "price_version"
+        ]
+      },
+      "CheckoutOrderDto": {
+        "type": "object",
+        "properties": {
+          "full_name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Số điện thoại khách hàng."
+          },
+          "email": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "fulfillment_type": {
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "PICKUP_SCHOOL"
+            ],
+            "default": "PICKUP_SCHOOL"
+          },
+          "payment_method": {
+            "type": "string",
+            "enum": [
+              "VIETQR",
+              "CASH",
+              "MANUAL_TRANSFER"
+            ],
+            "default": "VIETQR"
+          },
+          "coupon_code": {
+            "type": "string",
+            "description": "Mã coupon nếu có.",
+            "deprecated": true,
+            "example": "SUMMER2024"
+          },
+          "idem_scope": {
+            "type": "string",
+            "description": "Scope để đảm bảo idempotent (ví dụ checkout:session-abc)."
+          },
+          "idem_key": {
+            "type": "string",
+            "description": "Key duy nhất trong scope, thường là UUID."
+          },
+          "items": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckoutItemDto"
+            }
+          }
+        },
+        "required": [
+          "full_name",
+          "phone",
+          "idem_scope",
+          "idem_key",
+          "items"
+        ]
+      },
+      "OrderItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": "object",
+            "format": "uuid",
+            "nullable": true
+          },
+          "combo_id": {
+            "type": "object",
+            "format": "uuid",
+            "nullable": true
+          },
+          "unit_price_vnd": {
+            "type": "integer"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "line_total_vnd": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "unit_price_vnd",
+          "quantity",
+          "line_total_vnd"
+        ]
+      },
+      "OrderResponseDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "fulfillment_type": {
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "PICKUP_SCHOOL"
+            ]
+          },
+          "payment_method": {
+            "type": "string",
+            "enum": [
+              "VIETQR",
+              "CASH",
+              "MANUAL_TRANSFER"
+            ]
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SUCCESS",
+              "FAILED",
+              "REFUNDED"
+            ]
+          },
+          "order_status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "PAID",
+              "FULFILLING",
+              "DELIVERY_FAILED",
+              "FULFILLED",
+              "CANCELLED"
+            ],
+            "example": "CREATED",
+            "description": "High-level lifecycle status for the order (CREATED → PAID → FULFILLING → DELIVERY_FAILED → FULFILLED → CANCELLED)."
+          },
+          "delivery_attempts": {
+            "type": "integer",
+            "example": 0,
+            "description": "Number of delivery attempts recorded so far."
+          },
+          "delivery_failed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the last delivery attempt failed."
+          },
+          "delivery_failed_reason": {
+            "type": "string",
+            "description": "Recorded reason for the last failed delivery attempt."
+          },
+          "fulfilled_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the order was fulfilled."
+          },
+          "cancelled_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the order was cancelled."
+          },
+          "cancelled_reason": {
+            "type": "string",
+            "description": "Recorded reason for cancellation."
+          },
+          "grand_total_vnd": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponseDto"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "full_name",
+          "phone",
+          "fulfillment_type",
+          "payment_method",
+          "payment_status",
+          "order_status",
+          "delivery_attempts",
+          "grand_total_vnd",
+          "items"
+        ]
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "error_code": {
+            "type": "string",
+            "example": "PRICE_CHANGED"
+          },
+          "message": {
+            "type": "string",
+            "example": "The item price has changed."
+          },
+          "details": {
+            "type": "object",
+            "description": "Optional extra details.",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "error_code",
+          "message"
+        ]
+      },
+      "PaymentIntentBankDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "account_number": {
+            "type": "string"
+          },
+          "account_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "account_number",
+          "account_name"
+        ]
+      },
+      "PaymentIntentResponseDto": {
+        "type": "object",
+        "properties": {
+          "order_code": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SUCCESS",
+              "FAILED",
+              "REFUNDED"
+            ]
+          },
+          "amount_vnd": {
+            "type": "integer"
+          },
+          "transfer_content": {
+            "type": "string"
+          },
+          "bank": {
+            "$ref": "#/components/schemas/PaymentIntentBankDto"
+          }
+        },
+        "required": [
+          "order_code",
+          "payment_status",
+          "amount_vnd",
+          "transfer_content",
+          "bank"
+        ]
+      },
+      "ConfirmPaymentDto": {
+        "type": "object",
+        "properties": {
+          "order_code": {
+            "type": "string",
+            "example": "OIY-2026-00001",
+            "description": "Order code cần confirm thanh toán."
+          },
+          "amount_vnd": {
+            "type": "integer",
+            "example": 452500,
+            "description": "Số tiền đã nhận thực tế (VND).",
+            "minimum": 1
+          },
+          "transaction_id": {
+            "type": "string",
+            "example": "VCB-2026-001234",
+            "description": "Transaction ID duy nhất từ sao kê ngân hàng."
+          },
+          "reference_code": {
+            "type": "string",
+            "example": "OIY-2026-00001",
+            "description": "Tham chiếu nội bộ, mặc định = order_code."
+          },
+          "reference_note": {
+            "type": "string",
+            "example": "OIY-2026-00001; Nguyen Van A",
+            "description": "Ghi chú/raw reference note từ sao kê."
+          },
+          "paid_at": {
+            "type": "string",
+            "example": "2026-01-15T09:21:00+07:00",
+            "description": "Thời điểm thanh toán dạng ISO 8601. Mặc định là thời điểm gọi API."
+          },
+          "force": {
+            "type": "boolean",
+            "example": false,
+            "description": "Đặt true để cho phép force dù lệch số tiền."
+          },
+          "reason": {
+            "type": "string",
+            "example": "Học sinh tự nộp thiếu 10,000 VND nên chấp nhận.",
+            "description": "Lý do đi kèm khi phải force confirm."
+          }
+        },
+        "required": [
+          "order_code",
+          "amount_vnd",
+          "transaction_id"
+        ]
+      },
+      "PaymentRecordDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true,
+            "description": "Indicates the confirmation succeeded."
+          },
+          "order_code": {
+            "type": "string",
+            "example": "OIY-2026-00001",
+            "description": "Code of the order whose payment was confirmed."
+          },
+          "payment_status": {
+            "type": "string",
+            "example": "SUCCESS",
+            "description": "Payment status after confirmation.",
+            "enum": [
+              "PENDING",
+              "SUCCESS",
+              "FAILED",
+              "REFUNDED"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "order_code",
+          "payment_status"
+        ]
+      },
+      "ManualCreateBankTransactionDto": {
+        "type": "object",
+        "properties": {
+          "amount_vnd": {
+            "type": "integer",
+            "example": 452500,
+            "description": "Số tiền giao dịch (VND).",
+            "minimum": 0
+          },
+          "occurred_at": {
+            "type": "string",
+            "example": "2026-01-15T09:21:00+07:00",
+            "description": "Thời điểm giao dịch theo ISO 8601. FE sẽ convert “15:32 30/11/2025” sang ISO string trước khi gửi."
+          },
+          "transaction_id": {
+            "type": "string",
+            "example": "VCB-2026-001234",
+            "description": "Transaction ID duy nhất từ sao kê."
+          },
+          "narrative": {
+            "type": "string",
+            "example": "OIY-2026-00001; Nguyen A; donation",
+            "description": "Mô tả/narrative trong sao kê."
+          },
+          "matched_order_code": {
+            "type": "string",
+            "example": "OIY-2026-00001",
+            "description": "Order code nếu admin đã xác định trước."
+          },
+          "raw": {
+            "type": "object",
+            "description": "Payload thô (JSON) từ import hoặc webhook.",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "amount_vnd",
+          "occurred_at",
+          "transaction_id",
+          "narrative"
+        ]
+      },
+      "AdminCreateVariantDto": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "Unique SKU within the product.",
+            "example": "TSHIRT-BLUE-M"
+          },
+          "option1": {
+            "type": "string",
+            "description": "First option such as size.",
+            "example": "M"
+          },
+          "option2": {
+            "type": "string",
+            "description": "Second option such as color.",
+            "example": "Blue"
+          },
+          "priceVnd": {
+            "type": "number",
+            "description": "Price in VND.",
+            "example": 250000
+          },
+          "stock": {
+            "type": "number",
+            "description": "Available stock quantity.",
+            "example": 50
+          }
+        },
+        "required": [
+          "sku",
+          "priceVnd",
+          "stock"
+        ]
+      },
+      "AdminCreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Product display name.",
+            "example": "Áo đồng phục OIY"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of the product.",
+            "example": "Áo thun chất liệu cotton mềm mại."
+          },
+          "isDonationItem": {
+            "type": "boolean",
+            "description": "Mark true if this product is a donation item.",
+            "example": false
+          },
+          "variants": {
+            "description": "Initial variants to create with the product.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCreateVariantDto"
+            }
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "Main image URL of the product stored after upload.",
+            "example": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AdminUpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Updated product name."
+          },
+          "description": {
+            "type": "string",
+            "description": "Updated description."
+          },
+          "isDonationItem": {
+            "type": "boolean",
+            "description": "Updated donation flag."
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "Main image URL of the product stored after upload.",
+            "example": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+            "readOnly": true
+          }
+        }
+      },
+      "AdminUpdateVariantDto": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "Updated SKU value.",
+            "example": "TSHIRT-BLUE-L"
+          },
+          "option1": {
+            "type": "string",
+            "description": "Updated option1",
+            "example": "L"
+          },
+          "option2": {
+            "type": "string",
+            "description": "Updated option2",
+            "example": "Navy"
+          },
+          "priceVnd": {
+            "type": "number",
+            "description": "Updated price",
+            "example": 260000
+          },
+          "stock": {
+            "type": "number",
+            "description": "Updated stock",
+            "example": 40
+          }
+        }
+      },
+      "AdminComboComponentDto": {
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "description": "Variant ID participating in the combo.",
+            "example": "4b1c9f7c-4cbb-4e4f-9d70-a4b07e79f5a1"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Quantity of the variant in the combo.",
+            "example": 2
+          },
+          "unitPriceOverrideVnd": {
+            "type": "number",
+            "description": "Override unit price for this variant when part of the combo.",
+            "example": 120000
+          }
+        },
+        "required": [
+          "variantId",
+          "quantity"
+        ]
+      },
+      "AdminCreateComboDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name of the combo.",
+            "example": "Combo áo + nón"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Unique slug for the combo.",
+            "example": "combo-ao-non"
+          },
+          "description": {
+            "type": "string",
+            "description": "Combo description shown to customers.",
+            "example": "Tiết kiệm hơn khi mua áo và nón cùng lúc."
+          },
+          "pricingType": {
+            "type": "string",
+            "description": "Pricing strategy for the combo.",
+            "enum": [
+              "FIXED_PRICE",
+              "SUM_COMPONENTS",
+              "SUM_MINUS_AMOUNT",
+              "SUM_MINUS_PERCENT"
+            ],
+            "example": "SUM_MINUS_AMOUNT"
+          },
+          "listPriceVnd": {
+            "type": "number",
+            "description": "List price used for FIXED_PRICE combos.",
+            "example": 280000
+          },
+          "amountOffVnd": {
+            "type": "number",
+            "description": "Amount discount for SUM_MINUS_AMOUNT combos.",
+            "example": 20000
+          },
+          "percentOff": {
+            "type": "number",
+            "description": "Percent discount for SUM_MINUS_PERCENT combos.",
+            "example": 10
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the combo is active for purchase.",
+            "example": true
+          },
+          "coverImage": {
+            "type": "string",
+            "description": "Optional cover image URL.",
+            "example": "https://cdn.example.com/combos/combo-ao-non.jpg"
+          },
+          "components": {
+            "description": "Components that make up the combo.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminComboComponentDto"
+            }
+          },
+          "coverImageUrl": {
+            "type": "string",
+            "description": "Cover image URL stored after upload.",
+            "example": "https://res.cloudinary.com/demo/image/upload/combo-cover.jpg",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "pricingType",
+          "listPriceVnd",
+          "components"
+        ]
+      },
+      "AdminUpdateComboDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Updated combo name."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Updated slug."
+          },
+          "description": {
+            "type": "string",
+            "description": "Updated description."
+          },
+          "pricingType": {
+            "type": "string",
+            "description": "Updated pricing type.",
+            "enum": [
+              "FIXED_PRICE",
+              "SUM_COMPONENTS",
+              "SUM_MINUS_AMOUNT",
+              "SUM_MINUS_PERCENT"
+            ]
+          },
+          "listPriceVnd": {
+            "type": "number",
+            "description": "Updated list price.",
+            "example": 250000
+          },
+          "amountOffVnd": {
+            "type": "number",
+            "description": "Updated amount discount.",
+            "example": 15000
+          },
+          "percentOff": {
+            "type": "number",
+            "description": "Updated percent discount.",
+            "example": 15
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Updated active flag."
+          },
+          "coverImage": {
+            "type": "string",
+            "description": "Updated cover image URL."
+          },
+          "components": {
+            "description": "Replacing combo components.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminComboComponentDto"
+            }
+          },
+          "coverImageUrl": {
+            "type": "string",
+            "description": "Cover image URL stored after upload.",
+            "example": "https://res.cloudinary.com/demo/image/upload/combo-cover.jpg",
+            "readOnly": true
+          }
+        }
+      },
+      "ProviderPayloadDto": {
+        "type": "object",
+        "properties": {
+          "referenceNote": {
+            "type": "string",
+            "description": "Reference note or memo captured from the bank statement.",
+            "example": "OIY-2026-00012 Nguyen Van A"
+          }
+        }
+      },
+      "AdminConfirmPaymentDto": {
+        "type": "object",
+        "properties": {
+          "amountVnd": {
+            "type": "number",
+            "description": "Amount received in VND.",
+            "example": 450000
+          },
+          "transactionId": {
+            "type": "string",
+            "description": "Unique transaction reference code.",
+            "example": "VCB240101123456"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Force confirm even when amount mismatch.",
+            "example": false
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when payment was made.",
+            "example": "2026-01-15T09:30:00+07:00"
+          },
+          "providerPayload": {
+            "description": "Provider payload metadata, e.g. reference note.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProviderPayloadDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "amountVnd"
+        ]
+      },
+      "AdminStartFulfilmentDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Optional note for the fulfilment task.",
+            "example": "Volunteer assigned to pick up items after school."
+          }
+        }
+      },
+      "AdminFailFulfilmentDto": {
+        "type": "object",
+        "properties": {
+          "reason_code": {
+            "type": "string",
+            "example": "CUSTOMER_NO_SHOW",
+            "description": "Reason code for the failed delivery attempt.",
+            "enum": [
+              "CUSTOMER_NO_SHOW",
+              "UNREACHABLE",
+              "WRONG_LOCATION",
+              "OTHER"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "example": "Called twice, no answer.",
+            "description": "Additional notes about the failure."
+          }
+        },
+        "required": [
+          "reason_code"
+        ]
+      },
+      "AdminRetryFulfilmentDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Optional note for the retry attempt.",
+            "example": "Retry scheduled for tomorrow morning."
+          }
+        }
+      },
+      "AdminCompleteFulfilmentDto": {
+        "type": "object",
+        "properties": {
+          "fulfilled_at": {
+            "type": "string",
+            "description": "Optional timestamp for when fulfilment completed.",
+            "example": "2025-12-20T09:00:00+07:00"
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional summary note for the completion.",
+            "example": "Delivered at school gate; confirmed by teacher."
+          }
+        }
+      },
+      "AdminCancelOrderDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Reason for cancellation.",
+            "example": "Customer unreachable after two attempts."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      }
+    }
+  }
+}
