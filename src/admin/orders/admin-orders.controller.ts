@@ -17,11 +17,18 @@ import {
 } from '@nestjs/swagger';
 import { AdminOrdersService } from './admin-orders.service';
 import {
-  AdminCancelOrderDto,
   AdminConfirmPaymentDto,
-  AdminDeliverOrderDto,
   AdminOrderListQueryDto,
 } from './dto/admin-order.dto';
+import {
+  AdminCancelOrderDto,
+  AdminCompleteFulfilmentDto,
+  AdminFailFulfilmentDto,
+  AdminRetryFulfilmentDto,
+  AdminStartFulfilmentDto,
+} from './dto/admin-fulfilment.dto';
+import { ErrorResponseDto } from '../../common/dto/error-response.dto';
+import { OrderResponseDto } from '../../orders/dto/order-response.dto';
 
 @ApiTags('Admin – Orders')
 @ApiBearerAuth('admin-jwt')
@@ -127,6 +134,139 @@ export class AdminOrdersController {
     return this.service.confirmPayment(code, dto);
   }
 
+  @Post(':code/fulfilment-start')
+  @ApiOperation({
+    summary: 'Start fulfilment',
+    description: 'Transition an order from PAID to FULFILLING before delivery attempts.',
+  })
+  @ApiParam({
+    name: 'code',
+    type: String,
+    description: 'Order code to transition.',
+  })
+  @ApiBody({ type: AdminStartFulfilmentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Order marked as fulfilling.',
+    type: OrderResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'ORDER_NOT_FOUND',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'INVALID_STATUS_TRANSITION',
+    type: ErrorResponseDto,
+  })
+  startFulfilment(
+    @Param('code') code: string,
+    @Body() dto: AdminStartFulfilmentDto,
+  ) {
+    return this.service.startFulfilment(code, dto);
+  }
+
+  @Post(':code/fulfilment-fail')
+  @ApiOperation({
+    summary: 'Record failed delivery',
+    description:
+      'Record a failed delivery attempt (e.g., customer no-show) while in FULFILLING.',
+  })
+  @ApiParam({
+    name: 'code',
+    type: String,
+    description: 'Order code that encountered a failed delivery.',
+  })
+  @ApiBody({ type: AdminFailFulfilmentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Order marked as delivery failed.',
+    type: OrderResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'ORDER_NOT_FOUND',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'INVALID_STATUS_TRANSITION',
+    type: ErrorResponseDto,
+  })
+  failFulfilment(
+    @Param('code') code: string,
+    @Body() dto: AdminFailFulfilmentDto,
+  ) {
+    return this.service.failFulfilment(code, dto);
+  }
+
+  @Post(':code/fulfilment-retry')
+  @ApiOperation({
+    summary: 'Retry fulfilment',
+    description: 'Move an order from DELIVERY_FAILED back to FULFILLING.',
+  })
+  @ApiParam({
+    name: 'code',
+    type: String,
+    description: 'Order code to retry.',
+  })
+  @ApiBody({ type: AdminRetryFulfilmentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Order marked as fulfilling again.',
+    type: OrderResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'ORDER_NOT_FOUND',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'INVALID_STATUS_TRANSITION',
+    type: ErrorResponseDto,
+  })
+  retryFulfilment(
+    @Param('code') code: string,
+    @Body() dto: AdminRetryFulfilmentDto,
+  ) {
+    return this.service.retryFulfilment(code, dto);
+  }
+
+  @Post(':code/fulfilment-complete')
+  @ApiOperation({
+    summary: 'Complete fulfilment',
+    description: 'Mark a fulfilling order as fulfilled and record the completion time.',
+  })
+  @ApiParam({
+    name: 'code',
+    type: String,
+    description: 'Order code to mark as fulfilled.',
+  })
+  @ApiBody({ type: AdminCompleteFulfilmentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Order marked as fulfilled.',
+    type: OrderResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'ORDER_NOT_FOUND',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'INVALID_STATUS_TRANSITION',
+    type: ErrorResponseDto,
+  })
+  completeFulfilment(
+    @Param('code') code: string,
+    @Body() dto: AdminCompleteFulfilmentDto,
+  ) {
+    return this.service.completeFulfilment(code, dto);
+  }
+
   @Post(':code/cancel')
   @ApiOperation({
     summary: 'Cancel order',
@@ -138,28 +278,23 @@ export class AdminOrdersController {
     description: 'Order code to cancel.',
   })
   @ApiBody({ type: AdminCancelOrderDto })
-  @ApiResponse({ status: 200, description: 'Order cancelled.' })
-  @ApiResponse({ status: 404, description: 'Order not found or not cancellable.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Order cancelled.',
+    type: OrderResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'ORDER_NOT_FOUND',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'INVALID_STATUS_TRANSITION',
+    type: ErrorResponseDto,
+  })
   cancel(@Param('code') code: string, @Body() dto: AdminCancelOrderDto) {
     return this.service.cancel(code, dto);
   }
 
-  @Post(':code/deliver')
-  @ApiOperation({
-    summary: 'Mark delivered',
-    description:
-      'Mark a paid order as delivered and optionally create/update shipment record.',
-  })
-  @ApiParam({
-    name: 'code',
-    type: String,
-    description: 'Order code to mark as delivered.',
-  })
-  @ApiBody({ type: AdminDeliverOrderDto })
-  @ApiResponse({ status: 200, description: 'Order delivery recorded.' })
-  @ApiResponse({ status: 400, description: 'Order not paid yet.' })
-  @ApiResponse({ status: 404, description: 'Order not found.' })
-  deliver(@Param('code') code: string, @Body() dto: AdminDeliverOrderDto) {
-    return this.service.markDelivered(code, dto);
-  }
 }

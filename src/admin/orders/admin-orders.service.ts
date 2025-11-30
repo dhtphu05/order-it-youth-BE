@@ -5,18 +5,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  OrderStatus,
   Prisma,
   fulfillment_type,
   payment_status,
-  shipment_status,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
-  AdminCancelOrderDto,
   AdminConfirmPaymentDto,
-  AdminDeliverOrderDto,
   AdminOrderListQueryDto,
 } from './dto/admin-order.dto';
+import {
+  AdminCancelOrderDto,
+  AdminCompleteFulfilmentDto,
+  AdminFailFulfilmentDto,
+  AdminRetryFulfilmentDto,
+  AdminStartFulfilmentDto,
+} from './dto/admin-fulfilment.dto';
 
 @Injectable()
 export class AdminOrdersService {
@@ -144,6 +149,7 @@ export class AdminOrdersService {
         where: { id: order.id },
         data: {
           payment_status: payment_status.SUCCESS,
+          order_status: OrderStatus.PAID,
           paid_at: paidAt,
         },
         include: this.orderInclude(),
@@ -172,22 +178,185 @@ export class AdminOrdersService {
     return updatedOrder;
   }
 
-  async cancel(code: string, dto: AdminCancelOrderDto) {
-    const order = await this.prisma.orders.findUnique({
-      where: { code },
+  async startFulfilment(code: string, dto: AdminStartFulfilmentDto) {
+    const order = await this.loadOrder(code);
+    this.ensureTransition(
+      order.order_status,
+      [OrderStatus.PAID],
+      OrderStatus.FULFILLING,
+    );
+
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.orders.update({
+        where: { id: order.id },
+        data: { order_status: OrderStatus.FULFILLING },
+        include: this.orderInclude(),
+      });
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: null,
+          action: 'FULFILMENT_START',
+          entity: 'ORDER',
+          entity_id: order.id,
+          details: {
+            code: order.code,
+            note: dto.note ?? null,
+          },
+        },
+      });
+
+      return updated;
     });
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-    if (order.payment_status !== payment_status.PENDING) {
-      throw new BadRequestException('Only pending orders can be cancelled');
+
+    return updatedOrder;
+  }
+
+  async failFulfilment(code: string, dto: AdminFailFulfilmentDto) {
+    const order = await this.loadOrder(code);
+    this.ensureTransition(
+      order.order_status,
+      [OrderStatus.FULFILLING],
+      OrderStatus.DELIVERY_FAILED,
+    );
+
+    const now = new Date();
+
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.orders.update({
+        where: { id: order.id },
+        data: {
+          order_status: OrderStatus.DELIVERY_FAILED,
+          delivery_failed_at: now,
+          delivery_failed_reason: dto.reason_code,
+          delivery_attempts: order.delivery_attempts + 1,
+        },
+        include: this.orderInclude(),
+      });
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: null,
+          action: 'FULFILMENT_FAIL',
+          entity: 'ORDER',
+          entity_id: order.id,
+          details: {
+            code: order.code,
+            reason_code: dto.reason_code,
+            note: dto.note ?? null,
+            delivery_attempts: updated.delivery_attempts,
+          },
+        },
+      });
+
+      return updated;
+    });
+
+    return updatedOrder;
+  }
+
+  async retryFulfilment(code: string, dto: AdminRetryFulfilmentDto) {
+    const order = await this.loadOrder(code);
+    this.ensureTransition(
+      order.order_status,
+      [OrderStatus.DELIVERY_FAILED],
+      OrderStatus.FULFILLING,
+    );
+
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.orders.update({
+        where: { id: order.id },
+        data: { order_status: OrderStatus.FULFILLING },
+        include: this.orderInclude(),
+      });
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: null,
+          action: 'FULFILMENT_RETRY',
+          entity: 'ORDER',
+          entity_id: order.id,
+          details: {
+            code: order.code,
+            note: dto.note ?? null,
+          },
+        },
+      });
+
+      return updated;
+    });
+
+    return updatedOrder;
+  }
+
+  async completeFulfilment(code: string, dto: AdminCompleteFulfilmentDto) {
+    const order = await this.loadOrder(code);
+    this.ensureTransition(
+      order.order_status,
+      [OrderStatus.FULFILLING],
+      OrderStatus.FULFILLED,
+    );
+
+    const fulfilledAt = dto.fulfilled_at
+      ? new Date(dto.fulfilled_at)
+      : new Date();
+    if (Number.isNaN(fulfilledAt.getTime())) {
+      throw new BadRequestException('fulfilled_at must be a valid ISO string');
     }
 
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.orders.update({
         where: { id: order.id },
         data: {
-          payment_status: payment_status.FAILED,
+          order_status: OrderStatus.FULFILLED,
+          fulfilled_at: fulfilledAt,
+        },
+        include: this.orderInclude(),
+      });
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: null,
+          action: 'FULFILMENT_COMPLETE',
+          entity: 'ORDER',
+          entity_id: order.id,
+          details: {
+            code: order.code,
+            note: dto.note ?? null,
+            fulfilled_at: fulfilledAt,
+          },
+        },
+      });
+
+      return updated;
+    });
+
+    return updatedOrder;
+  }
+
+  async cancel(code: string, dto: AdminCancelOrderDto) {
+    const order = await this.loadOrder(code);
+
+    this.ensureTransition(
+      order.order_status,
+      [
+        OrderStatus.CREATED,
+        OrderStatus.PAID,
+        OrderStatus.FULFILLING,
+        OrderStatus.DELIVERY_FAILED,
+      ],
+      OrderStatus.CANCELLED,
+    );
+
+    const cancelledAt = new Date();
+
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.orders.update({
+        where: { id: order.id },
+        data: {
+          order_status: OrderStatus.CANCELLED,
+          cancelled_at: cancelledAt,
+          cancelled_reason: dto.reason,
         },
         include: this.orderInclude(),
       });
@@ -198,7 +367,10 @@ export class AdminOrdersService {
           action: 'CANCEL_ORDER',
           entity: 'ORDER',
           entity_id: order.id,
-          details: { code: order.code, reason: dto.reason ?? null },
+          details: {
+            code: order.code,
+            reason: dto.reason,
+          },
         },
       });
 
@@ -208,66 +380,26 @@ export class AdminOrdersService {
     return updatedOrder;
   }
 
-  async markDelivered(code: string, dto: AdminDeliverOrderDto) {
-    const order = await this.prisma.orders.findUnique({
-      where: { code },
-      include: { shipment: true },
-    });
+  private async loadOrder(code: string) {
+    const order = await this.prisma.orders.findUnique({ where: { code } });
     if (!order) {
       throw new NotFoundException('Order not found');
     }
-    if (order.payment_status !== payment_status.SUCCESS) {
-      throw new BadRequestException('Only paid orders can be delivered');
+    return order;
+  }
+
+  private ensureTransition(
+    current: OrderStatus,
+    allowed: OrderStatus[],
+    target: OrderStatus,
+  ) {
+    if (!allowed.includes(current)) {
+      throw new ConflictException({
+        error_code: 'INVALID_STATUS_TRANSITION',
+        message: `Cannot change order_status from ${current} to ${target}.`,
+        details: { from: current, to: target },
+      });
     }
-
-    const deliveredAt = dto.deliveredAt ?? new Date();
-    const status = dto.shipmentStatus ?? shipment_status.DELIVERED;
-
-    const updatedOrder = await this.prisma.$transaction(async (tx) => {
-      if (order.shipment) {
-        await tx.shipments.update({
-          where: { id: order.shipment.id },
-          data: {
-            status,
-            delivered_at: deliveredAt,
-            proof: dto.note ? { note: dto.note } : undefined,
-          },
-        });
-      } else {
-        await tx.shipments.create({
-          data: {
-            order_id: order.id,
-            status,
-            delivered_at: deliveredAt,
-            proof: dto.note ? { note: dto.note } : undefined,
-          },
-        });
-      }
-
-      const fresh = await tx.orders.findUnique({
-        where: { id: order.id },
-        include: this.orderInclude(),
-      });
-
-      await tx.audit_logs.create({
-        data: {
-          actor_user_id: null,
-          action: 'MARK_DELIVERED',
-          entity: 'ORDER',
-          entity_id: order.id,
-          details: {
-            code: order.code,
-            delivered_at: deliveredAt,
-            shipment_status: status,
-            note: dto.note ?? null,
-          },
-        },
-      });
-
-      return fresh;
-    });
-
-    return updatedOrder;
   }
 
   private orderInclude() {

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { fulfillment_type, OrderStatus, payment_method, payment_status } from '@prisma/client';
 
 export class OrderItemResponseDto {
@@ -44,9 +44,49 @@ export class OrderResponseDto {
     enum: OrderStatus,
     example: OrderStatus.CREATED,
     description:
-      'High-level lifecycle status for the order (CREATED → PAID → FULFILLING → FULFILLED → CANCELLED).',
+      'High-level lifecycle status for the order (CREATED → PAID → FULFILLING → DELIVERY_FAILED → FULFILLED → CANCELLED).',
   })
   order_status: OrderStatus;
+
+  @ApiProperty({
+    type: 'integer',
+    example: 0,
+    description: 'Number of delivery attempts recorded so far.',
+  })
+  delivery_attempts: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description: 'Timestamp when the last delivery attempt failed.',
+  })
+  delivery_failed_at?: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Recorded reason for the last failed delivery attempt.',
+  })
+  delivery_failed_reason?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description: 'Timestamp when the order was fulfilled.',
+  })
+  fulfilled_at?: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description: 'Timestamp when the order was cancelled.',
+  })
+  cancelled_at?: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Recorded reason for cancellation.',
+  })
+  cancelled_reason?: string;
 
   @ApiProperty({ type: 'integer' })
   grand_total_vnd: number;

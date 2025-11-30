@@ -11,7 +11,6 @@ export class ErrorResponseDto {
     description: 'Optional extra details.',
     type: 'object',
     additionalProperties: true,
-    required: false,
   })
   details?: Record<string, any>;
 }

@@ -557,6 +557,12 @@ export class OrdersService {
         quantity: item.quantity,
         line_total_vnd: item.line_total_vnd,
       })),
+      delivery_attempts: order.delivery_attempts,
+      delivery_failed_at: order.delivery_failed_at ?? undefined,
+      delivery_failed_reason: order.delivery_failed_reason ?? undefined,
+      fulfilled_at: order.fulfilled_at ?? undefined,
+      cancelled_at: order.cancelled_at ?? undefined,
+      cancelled_reason: order.cancelled_reason ?? undefined,
     };
   }
 }

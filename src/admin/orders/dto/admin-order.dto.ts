@@ -1,8 +1,4 @@
-import {
-  fulfillment_type,
-  payment_status,
-  shipment_status,
-} from '@prisma/client';
+import { fulfillment_type, payment_status } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -116,43 +112,4 @@ export class AdminConfirmPaymentDto {
     type: ProviderPayloadDto,
   })
   providerPayload?: ProviderPayloadDto;
-}
-
-export class AdminCancelOrderDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  @ApiPropertyOptional({
-    description: 'Reason for cancellation.',
-    example: 'Khách yêu cầu hủy.',
-  })
-  reason?: string;
-}
-
-export class AdminDeliverOrderDto {
-  @IsOptional()
-  @Type(() => Date)
-  @IsDate()
-  @ApiPropertyOptional({
-    description: 'Delivery timestamp.',
-    example: '2026-01-20T14:00:00+07:00',
-  })
-  deliveredAt?: Date;
-
-  @IsOptional()
-  @IsString()
-  @ApiPropertyOptional({
-    description: 'Additional delivery note.',
-    example: 'Giao cho phụ huynh tại cổng trường.',
-  })
-  note?: string;
-
-  @IsOptional()
-  @IsEnum(shipment_status)
-  @ApiPropertyOptional({
-    description: 'Shipment status override.',
-    enum: shipment_status,
-    example: shipment_status.DELIVERED,
-  })
-  shipmentStatus?: shipment_status;
 }
