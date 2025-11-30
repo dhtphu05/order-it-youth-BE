@@ -1,49 +1,57 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { ManualCreateBankTransactionDto } from './dto/manual-create-bank-transaction.dto';
-
-const ORDER_CODE_REGEX = /OIY-26-[A-Z0-9]{5}/i;
 
 @Injectable()
 export class BankTransactionsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Manually records a bank transaction based on statement data.
+   * NOTE: This method only persists the provided payload. Auto-matching or payment
+   * confirmation must be implemented elsewhere.
+   */
   async manualCreate(dto: ManualCreateBankTransactionDto) {
-    const existed = await this.prisma.bank_transactions.findUnique({
+    const existing = await this.prisma.bank_transactions.findUnique({
       where: { transaction_id: dto.transaction_id },
     });
-    if (existed) {
-      throw new BadRequestException({
-        code: 'BANK_TX_DUPLICATE_TRANSACTION_ID',
-        message: 'Transaction already exists',
+    if (existing) {
+      throw new ConflictException({
+        error_code: 'BANK_TX_DUPLICATE',
+        message: 'A bank transaction with this transaction_id already exists.',
       });
     }
 
-    const matchedOrderCode =
-      this.extractOrderCode(dto.narrative) ??
-      this.extractOrderCode(dto.transaction_id);
-
-    const record = await this.prisma.bank_transactions.create({
-      data: {
-        bank_code: dto.bank_code,
-        account_no: dto.account_no,
-        amount_vnd: dto.amount_vnd,
-        occurred_at: new Date(dto.occurred_at),
-        transaction_id: dto.transaction_id,
-        narrative: dto.narrative ?? null,
-        raw: dto.raw ?? undefined,
-        matched_order_code: matchedOrderCode,
-      },
-    });
-
-    return record;
-  }
-
-  private extractOrderCode(source?: string | null): string | null {
-    if (!source) {
-      return null;
+    const occurredAt = new Date(dto.occurred_at);
+    if (Number.isNaN(occurredAt.getTime())) {
+      throw new BadRequestException({
+        error_code: 'INVALID_OCCURRED_AT',
+        message: 'occurred_at must be a valid ISO 8601 timestamp.',
+      });
     }
-    const match = source.match(ORDER_CODE_REGEX);
-    return match ? match[0].toUpperCase() : null;
+
+    const bankCode = process.env.PAYMENT_BANK_CODE ?? '';
+    const accountNo = process.env.PAYMENT_ACCOUNT_NO ?? '';
+
+    const data: Prisma.bank_transactionsCreateInput = {
+      bank_code: bankCode,
+      account_no: accountNo,
+      amount_vnd: dto.amount_vnd,
+      occurred_at: occurredAt,
+      transaction_id: dto.transaction_id,
+      narrative: dto.narrative,
+      matched_order_code: dto.matched_order_code ?? null,
+    };
+
+    if (dto.raw !== undefined) {
+      data.raw = dto.raw as Prisma.InputJsonValue;
+    }
+
+    return this.prisma.bank_transactions.create({ data });
   }
 }

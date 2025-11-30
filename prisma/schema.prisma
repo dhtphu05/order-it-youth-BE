@@ -379,8 +379,9 @@ model idempotency_keys {
 /// ==== 9) Sao kê & Nhật ký (Tuỳ chọn) ====
 model bank_transactions {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bank_code          String   @db.VarChar(40)
-  account_no         String   @db.VarChar(40)
+  bank_code          String?  @db.VarChar(40)
+  account_no         String?  @db.VarChar(40)
+  account_name       String?  @db.VarChar(160)
   amount_vnd         Int
   occurred_at        DateTime @db.Timestamptz
   transaction_id     String   @unique @db.VarChar(160)
