@@ -26,6 +26,14 @@ enum payment_status {
   REFUNDED
 }
 
+enum OrderStatus {
+  CREATED
+  PAID
+  FULFILLING
+  FULFILLED
+  CANCELLED
+}
+
 enum shipment_status {
   PENDING
   ASSIGNED
@@ -261,6 +269,7 @@ model orders {
   grand_total_vnd  Int              @default(0)
   payment_method   payment_method   @default(VIETQR)
   payment_status   payment_status   @default(PENDING)
+  order_status     OrderStatus      @default(CREATED)
   payment_reference String?         @db.VarChar(120)
   paid_at          DateTime?        @db.Timestamptz
   created_at       DateTime         @default(now()) @db.Timestamptz

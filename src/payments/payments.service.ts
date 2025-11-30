@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { payment_status } from '@prisma/client';
+import { OrderStatus, payment_status } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 
@@ -91,6 +91,7 @@ export class PaymentsService {
         data: {
           payment_status: payment_status.SUCCESS,
           paid_at: paidAt,
+          order_status: OrderStatus.PAID,
         },
       });
 

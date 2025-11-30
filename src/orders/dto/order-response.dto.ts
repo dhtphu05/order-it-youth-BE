@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { fulfillment_type, payment_method, payment_status } from '@prisma/client';
+import { fulfillment_type, OrderStatus, payment_method, payment_status } from '@prisma/client';
 
 export class OrderItemResponseDto {
   @ApiProperty()
@@ -39,6 +39,14 @@ export class OrderResponseDto {
 
   @ApiProperty({ enum: payment_status })
   payment_status: payment_status;
+
+  @ApiProperty({
+    enum: OrderStatus,
+    example: OrderStatus.CREATED,
+    description:
+      'High-level lifecycle status for the order (CREATED → PAID → FULFILLING → FULFILLED → CANCELLED).',
+  })
+  order_status: OrderStatus;
 
   @ApiProperty({ type: 'integer' })
   grand_total_vnd: number;

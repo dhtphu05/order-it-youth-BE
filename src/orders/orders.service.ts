@@ -12,6 +12,7 @@ import {
   Prisma,
   combo_pricing_type,
   fulfillment_type,
+  OrderStatus,
   payment_method,
   payment_status,
 } from '@prisma/client';
@@ -280,6 +281,7 @@ export class OrdersService {
             grand_total_vnd: subtotal,
             payment_method: paymentMethod,
             payment_status: payment_status.PENDING,
+            order_status: OrderStatus.CREATED,
             payment_reference: orderCode,
             items: {
               create: computedItems.map((item) => ({
@@ -545,6 +547,7 @@ export class OrdersService {
       fulfillment_type: order.fulfillment_type,
       payment_method: order.payment_method,
       payment_status: order.payment_status,
+      order_status: order.order_status,
       grand_total_vnd: order.grand_total_vnd,
       items: order.items.map((item) => ({
         title: item.title_snapshot,
