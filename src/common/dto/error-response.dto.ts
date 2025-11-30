@@ -16,7 +16,7 @@ export class ErrorResponseDto {
   @ApiPropertyOptional({
     description:
       'Optional list of error items (e.g. variants that changed price or ran out of stock).',
-    type: 'object',
+    type: Object,
     isArray: true,
   })
   items?: unknown[];
