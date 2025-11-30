@@ -28,9 +28,9 @@ export class PaymentsService {
     }
 
     if (order.payment_status !== payment_status.PENDING) {
-      throw new ConflictException({
-        error_code: 'ORDER_ALREADY_PAID',
-        message: 'Order payment has already been confirmed.',
+      throw new BadRequestException({
+        error_code: 'ORDER_NOT_PENDING',
+        message: 'Order payment is not pending.',
       });
     }
 

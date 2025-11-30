@@ -21,18 +21,19 @@ export class OrdersController {
   @Post('checkout')
   @ApiOperation({ summary: 'Khởi tạo checkout công khai' })
   @ApiBody({ type: CheckoutOrderDto })
-  @ApiCreatedResponse({
-    description: 'Tạo order thành công.',
+  @ApiResponse({
+    status: 201,
+    description: 'Order created successfully.',
     type: OrderResponseDto,
   })
   @ApiResponse({
     status: 409,
-    description: 'Idempotency in progress hoặc hết hàng / lệch giá.',
+    description: 'IDEMPOTENCY_IN_PROGRESS or PRICE_CHANGED',
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 400,
-    description: 'Yêu cầu không hợp lệ (ví dụ combo/variant không tồn tại).',
+    description: 'INVALID_VARIANT, INVALID_COMBO, NO_VALID_ITEMS, or other validation errors.',
     type: ErrorResponseDto,
   })
   checkout(@Body() dto: CheckoutOrderDto) {
@@ -41,13 +42,19 @@ export class OrdersController {
 
   @Get(':code/payment-intent')
   @ApiOperation({ summary: 'Lấy thông tin thanh toán VietQR' })
-  @ApiOkResponse({
+  @ApiResponse({
+    status: 200,
     description: 'Thông tin thanh toán hoặc trạng thái hiện tại của đơn hàng.',
     type: PaymentIntentResponseDto,
   })
   @ApiResponse({
     status: 404,
-    description: 'Không tìm thấy order.',
+    description: 'ORDER_NOT_FOUND',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'ORDER_NOT_PENDING',
     type: ErrorResponseDto,
   })
   getPaymentIntent(@Param('code') code: string) {

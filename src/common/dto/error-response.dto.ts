@@ -1,23 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ErrorResponseDto {
-  @ApiProperty({ description: 'Stable machine-readable error code.' })
+  @ApiProperty({ example: 'PRICE_CHANGED' })
   error_code: string;
 
-  @ApiProperty({ description: 'Human-readable message for display/debug.' })
+  @ApiProperty({ example: 'The item price has changed.' })
   message: string;
 
   @ApiPropertyOptional({
-    description:
-      'Optional structured details. Can contain arrays (e.g. price changes, stock issues).',
+    description: 'Optional extra details.',
+    type: 'object',
+    additionalProperties: true,
+    required: false,
   })
-  details?: unknown;
-
-  @ApiPropertyOptional({
-    description:
-      'Optional list of error items (e.g. variants that changed price or ran out of stock).',
-    type: Object,
-    isArray: true,
-  })
-  items?: unknown[];
+  details?: Record<string, any>;
 }

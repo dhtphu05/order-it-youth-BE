@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -86,12 +87,11 @@ export class OrdersService {
     }
 
     if (existed) {
-      throw new HttpException(
+      throw new ConflictException(
         this.buildErrorPayload(
           'IDEMPOTENCY_IN_PROGRESS',
           'Checkout request with this key is already being processed. Please retry later.',
         ),
-        HttpStatus.CONFLICT,
       );
     }
 
@@ -326,7 +326,17 @@ export class OrdersService {
           }
         }
       }
-      throw error;
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        this.buildErrorPayload(
+          'UNKNOWN_ERROR',
+          'Unexpected error while processing checkout.',
+        ),
+      );
     }
   }
 
@@ -338,6 +348,15 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException(
         this.buildErrorPayload('ORDER_NOT_FOUND', 'Order not found'),
+      );
+    }
+
+    if (order.payment_status !== payment_status.PENDING) {
+      throw new BadRequestException(
+        this.buildErrorPayload(
+          'ORDER_NOT_PENDING',
+          'Order payment is not pending.',
+        ),
       );
     }
 
@@ -500,13 +519,22 @@ export class OrdersService {
   private buildErrorPayload(
     errorCode: string,
     message: string,
-    extras?: Record<string, unknown>,
+    details?: Record<string, unknown>,
   ) {
-    return {
+    const payload: {
+      error_code: string;
+      message: string;
+      details?: Record<string, unknown>;
+    } = {
       error_code: errorCode,
       message,
-      ...(extras ?? {}),
     };
+
+    if (details) {
+      payload.details = details;
+    }
+
+    return payload;
   }
 
   private toOrderResponse(order: OrderWithItems): OrderResponseDto {

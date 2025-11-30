@@ -19,6 +19,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { PaymentsService } from './payments.service';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
+import { PaymentRecordDto } from './dto/payment-record.dto';
 
 type RequestWithUser = Request & {
   user?: {
@@ -45,22 +46,23 @@ export class PaymentsController {
   })
   @ApiBody({ type: ConfirmPaymentDto })
   @ApiResponse({
-    status: 200,
+    status: 201,
     description: 'Payment confirmed and order marked as paid.',
+    type: PaymentRecordDto,
   })
   @ApiResponse({
     status: 400,
-    description: 'Amount mismatch or invalid input.',
+    description: 'AMOUNT_MISMATCH or ORDER_NOT_PENDING',
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 404,
-    description: 'Order not found.',
+    description: 'ORDER_NOT_FOUND',
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 409,
-    description: 'Order already paid or duplicate transaction_id.',
+    description: 'DUPLICATE_TRANSACTION_ID',
     type: ErrorResponseDto,
   })
   confirm(@Body() dto: ConfirmPaymentDto, @Req() req: RequestWithUser) {
