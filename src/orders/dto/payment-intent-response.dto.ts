@@ -2,16 +2,13 @@ import { ApiProperty } from '@nestjs/swagger';
 import { payment_status } from '@prisma/client';
 
 export class PaymentIntentBankDto {
-  @ApiProperty()
-  code: string;
+  @ApiProperty({ description: 'Mã ngân hàng nhận chuyển khoản' })
+  bank_code: string;
 
-  @ApiProperty()
-  name: string;
+  @ApiProperty({ description: 'Số tài khoản nhận chuyển khoản' })
+  account_no: string;
 
-  @ApiProperty()
-  account_number: string;
-
-  @ApiProperty()
+  @ApiProperty({ description: 'Chủ tài khoản nhận chuyển khoản' })
   account_name: string;
 }
 

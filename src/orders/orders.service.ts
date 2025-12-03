@@ -353,30 +353,19 @@ export class OrdersService {
       );
     }
 
-    if (order.payment_status !== payment_status.PENDING) {
+    if (
+      order.payment_status !== payment_status.PENDING &&
+      order.payment_status !== payment_status.SUCCESS
+    ) {
       throw new BadRequestException(
         this.buildErrorPayload(
-          'ORDER_NOT_PENDING',
-          'Order payment is not pending.',
+          'ORDER_NOT_PAYABLE',
+          'Trạng thái đơn hàng không hợp lệ cho việc thanh toán.',
         ),
       );
     }
 
-    const bankCode = this.config.get<string>('PAYMENT_BANK_CODE');
-    const bankName = this.config.get<string>('PAYMENT_BANK_NAME');
-    const accountNumber =
-      this.config.get<string>('PAYMENT_ACCOUNT_NUMBER') ??
-      this.config.get<string>('PAYMENT_ACCOUNT_NO');
-    const accountName = this.config.get<string>('PAYMENT_ACCOUNT_NAME');
-
-    if (!bankCode || !bankName || !accountNumber || !accountName) {
-      throw new InternalServerErrorException(
-        this.buildErrorPayload(
-          'PAYMENT_ACCOUNT_NOT_CONFIGURED',
-          'Payment account information is missing.',
-        ),
-      );
-    }
+    const paymentAccount = this.getPaymentAccountConfig();
 
     const transferContent = order.payment_reference ?? order.code;
 
@@ -386,11 +375,34 @@ export class OrdersService {
       amount_vnd: order.grand_total_vnd,
       transfer_content: transferContent,
       bank: {
-        code: bankCode,
-        name: bankName,
-        account_number: accountNumber,
-        account_name: accountName,
+        bank_code: paymentAccount.bankCode,
+        account_no: paymentAccount.accountNo,
+        account_name: paymentAccount.accountName,
       },
+    };
+  }
+
+  private getPaymentAccountConfig() {
+    const bankCode = this.config.get<string>('PAYMENT_BANK_CODE')?.trim();
+    const accountNo = (
+      this.config.get<string>('PAYMENT_ACCOUNT_NO') ??
+      this.config.get<string>('PAYMENT_ACCOUNT_NUMBER')
+    )?.trim();
+    const accountName = this.config.get<string>('PAYMENT_ACCOUNT_NAME')?.trim();
+
+    if (!bankCode || !accountNo || !accountName) {
+      throw new InternalServerErrorException(
+        this.buildErrorPayload(
+          'CONFIG_PAYMENT_ACCOUNT_MISSING',
+          'Thiếu cấu hình tài khoản thanh toán. Vui lòng cập nhật thông tin tài khoản nhận tiền.',
+        ),
+      );
+    }
+
+    return {
+      bankCode,
+      accountNo,
+      accountName,
     };
   }
 

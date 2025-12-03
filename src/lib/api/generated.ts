@@ -272,9 +272,8 @@ export interface ErrorResponseDto {
 }
 
 export interface PaymentIntentBankDto {
-  code: string;
-  name: string;
-  account_number: string;
+  bank_code: string;
+  account_no: string;
   account_name: string;
 }
 
