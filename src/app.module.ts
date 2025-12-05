@@ -10,6 +10,7 @@ import { AdminProductsModule } from './admin/products/admin-products.module';
 import { AdminCombosModule } from './admin/combos/admin-combos.module';
 import { AdminOrdersModule } from './admin/orders/admin-orders.module';
 import { AdminTeamsModule } from './admin/teams/admin-teams.module';
+import { TeamModule } from './team/team.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AdminTeamsModule } from './admin/teams/admin-teams.module';
     AdminCombosModule,
     AdminOrdersModule,
     AdminTeamsModule,
+    TeamModule,
   ],
 })
 export class AppModule {}
