@@ -9,6 +9,7 @@ import { BankTransactionsModule } from './bank-transactions/bank-transactions.mo
 import { AdminProductsModule } from './admin/products/admin-products.module';
 import { AdminCombosModule } from './admin/combos/admin-combos.module';
 import { AdminOrdersModule } from './admin/orders/admin-orders.module';
+import { AdminTeamsModule } from './admin/teams/admin-teams.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AdminOrdersModule } from './admin/orders/admin-orders.module';
     AdminProductsModule,
     AdminCombosModule,
     AdminOrdersModule,
+    AdminTeamsModule,
   ],
 })
 export class AppModule {}
