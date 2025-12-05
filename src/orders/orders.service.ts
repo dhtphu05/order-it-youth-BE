@@ -262,7 +262,7 @@ export class OrdersService {
     }
 
     try {
-      const order = await this.prisma.$transaction(async (tx) => {
+      const order = await this.prisma.$transaction<OrderWithItems>(async (tx) => {
         for (const requirement of variantRequirements.values()) {
           const updateResult = await tx.product_variants.updateMany({
             where: {
@@ -304,7 +304,7 @@ export class OrdersService {
             order_status: OrderStatus.CREATED,
             payment_reference: orderCode,
             team_id: teamId,
-            team_assignment_source: teamAssignmentSource,
+            team_assignment_source: teamAssignmentSource ?? undefined,
             items: {
               create: computedItems.map((item) => ({
                 variant_id: item.variantId,
