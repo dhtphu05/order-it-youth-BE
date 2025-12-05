@@ -139,6 +139,14 @@ export class CheckoutOrderDto {
   @IsString()
   coupon_code?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Optional team referral code, used to associate the order with a team',
+  })
+  @IsOptional()
+  @IsString()
+  team_ref_code?: string;
+
   @ApiProperty({
     description: 'Scope để đảm bảo idempotent (ví dụ checkout:session-abc).',
   })

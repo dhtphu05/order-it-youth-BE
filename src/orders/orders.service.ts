@@ -15,6 +15,7 @@ import {
   OrderStatus,
   payment_method,
   payment_status,
+  team_assignment_source,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckoutOrderDto } from './dto/checkout-order.dto';
@@ -241,6 +242,25 @@ export class OrdersService {
     const paymentMethod = dto.payment_method ?? payment_method.VIETQR;
     const orderCode = generateOrderCode();
 
+    let teamId: string | null = null;
+    let teamAssignmentSource: team_assignment_source | null = null;
+
+    if (dto.team_ref_code) {
+      const team = await this.findTeamByRefCode(dto.team_ref_code);
+      if (team) {
+        teamId = team.id;
+        teamAssignmentSource = team_assignment_source.REFERRAL;
+      }
+    }
+
+    if (!teamId) {
+      const team = await this.pickTeamForAutoAssign();
+      if (team) {
+        teamId = team.id;
+        teamAssignmentSource = team_assignment_source.AUTO;
+      }
+    }
+
     try {
       const order = await this.prisma.$transaction(async (tx) => {
         for (const requirement of variantRequirements.values()) {
@@ -283,6 +303,8 @@ export class OrdersService {
             payment_status: payment_status.PENDING,
             order_status: OrderStatus.CREATED,
             payment_reference: orderCode,
+            team_id: teamId,
+            team_assignment_source: teamAssignmentSource,
             items: {
               create: computedItems.map((item) => ({
                 variant_id: item.variantId,
@@ -404,6 +426,44 @@ export class OrdersService {
       accountNo,
       accountName,
     };
+  }
+
+  private async findTeamByRefCode(teamRefCode: string) {
+    if (!teamRefCode) {
+      return null;
+    }
+    return this.prisma.teams.findFirst({
+      where: { code: teamRefCode, is_active: true },
+    });
+  }
+
+  private async pickTeamForAutoAssign() {
+    const teams = await this.prisma.teams.findMany({
+      where: { is_active: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        orders: {
+          where: { payment_status: 'SUCCESS' },
+          select: { grand_total_vnd: true },
+        },
+      },
+    });
+
+    if (!teams.length) {
+      return null;
+    }
+
+    const withRevenue = teams.map((t) => {
+      const revenue = t.orders.reduce((sum, o) => sum + o.grand_total_vnd, 0);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { orders, ...teamData } = t;
+      return { ...teamData, revenue };
+    });
+
+    withRevenue.sort((a, b) => a.revenue - b.revenue);
+    return withRevenue[0];
   }
 
   private buildVariantItem(
