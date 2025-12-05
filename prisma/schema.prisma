@@ -62,6 +62,12 @@ enum user_role {
   SHIPPER
 }
 
+enum team_assignment_source {
+  REFERRAL
+  AUTO
+  MANUAL
+}
+
 /// ==== 1) Người dùng & khách hàng ====
 model users {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -76,6 +82,36 @@ model users {
 
   // Quan hệ ngược lại
   audit_logs audit_logs[]
+  team_memberships team_members[] @relation("UserTeamMemberships")
+  assigned_shipments shipments[] @relation("UserAssignedShipments")
+}
+
+model teams {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String         @db.VarChar(120)
+  code       String         @unique @db.VarChar(40)
+  is_active  Boolean        @default(true)
+  meta       Json?          @db.JsonB
+  created_at DateTime       @default(now()) @db.Timestamptz
+  updated_at DateTime       @updatedAt @db.Timestamptz
+
+  // Quan hệ ngược lại
+  members team_members[]
+  orders  orders[]
+}
+
+model team_members {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  team_id    String   @db.Uuid
+  user_id    String   @db.Uuid
+  role       String   @db.VarChar(30)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  // Quan hệ
+  team teams @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user users @relation("UserTeamMemberships", fields: [user_id], references: [id])
+
+  @@unique([team_id, user_id])
 }
 
 model customers {
@@ -261,6 +297,8 @@ model orders {
   code             String           @unique @db.VarChar(40)
   order_title      String           @db.VarChar(180)
   quantity         Int              @default(1)
+  team_id          String?          @db.Uuid
+  team_assignment_source team_assignment_source @default(AUTO)
   fulfillment_type fulfillment_type @default(PICKUP_SCHOOL)
   full_name        String           @db.VarChar(120)
   phone            String           @db.VarChar(20)
@@ -281,6 +319,9 @@ model orders {
   delivery_attempts Int              @default(0)
   created_at       DateTime         @default(now()) @db.Timestamptz
   updated_at       DateTime         @updatedAt @db.Timestamptz
+
+  // Quan hệ
+  team teams? @relation(fields: [team_id], references: [id])
 
   // Quan hệ ngược lại
   items         order_items[]
@@ -354,6 +395,7 @@ model shipments {
   status         shipment_status  @default(PENDING)
   assigned_name  String?          @db.VarChar(120)
   assigned_phone String?          @db.VarChar(20)
+  assigned_user_id String?        @db.Uuid
   pickup_eta     DateTime?        @db.Timestamptz
   delivered_at   DateTime?        @db.Timestamptz
   proof          Json?            @db.JsonB
@@ -361,6 +403,7 @@ model shipments {
   updated_at     DateTime         @updatedAt @db.Timestamptz
 
   // Quan hệ
+  assigned_user users? @relation("UserAssignedShipments", fields: [assigned_user_id], references: [id])
   order orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
   @@index([status], map: "idx_shipments_status")
