@@ -4,11 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, shipment_status } from '@prisma/client';
+import { OrderStatus, Prisma, shipment_status } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   TeamAssignOrderDto,
+  TeamMarkFailedDto,
   TeamMyShipmentsQueryDto,
+  TeamStartDeliveryDto,
   TeamUnassignedShipmentsQueryDto,
 } from './dto/team-shipments.dto';
 import { TeamContext } from 'src/common/interfaces/team-context.interface';
@@ -16,6 +18,41 @@ import { TeamContext } from 'src/common/interfaces/team-context.interface';
 @Injectable()
 export class TeamShipmentsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async findOrderAndValidate(
+    code: string,
+    teamContext: TeamContext,
+    userId?: string,
+  ) {
+    const order = await this.prisma.orders.findUnique({
+      where: { code },
+      include: { shipment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('ORDER_NOT_FOUND');
+    }
+
+    if (!order.team_id || !teamContext.teamIds.includes(order.team_id)) {
+      throw new ForbiddenException('ORDER_NOT_IN_TEAM');
+    }
+
+    let shipment = order.shipment;
+    if (!shipment) {
+      shipment = await this.prisma.shipments.create({
+        data: {
+          order_id: order.id,
+          status: shipment_status.PENDING,
+        },
+      });
+    }
+
+    if (userId && shipment.assigned_user_id !== userId) {
+      throw new ForbiddenException('NOT_ASSIGNED_TO_YOU');
+    }
+
+    return { order, shipment };
+  }
 
   async listUnassignedOrdersForTeams(
     teamIds: string[],
@@ -85,28 +122,10 @@ export class TeamShipmentsService {
   }
 
   async assignSelfToOrder(user: any, teamContext: TeamContext, code: string) {
-    const order = await this.prisma.orders.findUnique({
-      where: { code },
-      include: { shipment: true },
-    });
-
-    if (!order) {
-      throw new NotFoundException('ORDER_NOT_FOUND');
-    }
-
-    if (!order.team_id || !teamContext.teamIds.includes(order.team_id)) {
-      throw new ForbiddenException('ORDER_NOT_IN_TEAM');
-    }
-
-    let shipment = order.shipment;
-    if (!shipment) {
-      shipment = await this.prisma.shipments.create({
-        data: {
-          order_id: order.id,
-          status: 'PENDING',
-        },
-      });
-    }
+    const { order, shipment } = await this.findOrderAndValidate(
+      code,
+      teamContext,
+    );
 
     if (shipment.assigned_user_id && shipment.assigned_user_id !== user.id) {
       throw new ForbiddenException('ALREADY_ASSIGNED');
@@ -136,27 +155,19 @@ export class TeamShipmentsService {
     code: string,
     dto: TeamAssignOrderDto,
   ) {
-    const order = await this.prisma.orders.findUnique({
-      where: { code },
-      include: { shipment: true },
-    });
+    const { order, shipment } = await this.findOrderAndValidate(
+      code,
+      teamContext,
+    );
 
-    if (!order) {
-      throw new NotFoundException('ORDER_NOT_FOUND');
-    }
-
-    if (!order.team_id || !teamContext.teamIds.includes(order.team_id)) {
-      throw new ForbiddenException('ORDER_NOT_IN_TEAM');
-    }
-
-    const role = teamContext.rolesByTeam[order.team_id];
+    const role = teamContext.rolesByTeam[order.team_id!];
     if (role !== 'MANAGER') {
       throw new ForbiddenException('NOT_TEAM_MANAGER');
     }
 
     const membership = await this.prisma.team_members.findFirst({
       where: {
-        team_id: order.team_id,
+        team_id: order.team_id!,
         user_id: dto.assigneeUserId,
       },
       include: {
@@ -166,16 +177,6 @@ export class TeamShipmentsService {
 
     if (!membership) {
       throw new ForbiddenException('ASSIGNEE_NOT_IN_TEAM');
-    }
-
-    let shipment = order.shipment;
-    if (!shipment) {
-      shipment = await this.prisma.shipments.create({
-        data: {
-          order_id: order.id,
-          status: 'PENDING',
-        },
-      });
     }
 
     const data: Prisma.shipmentsUpdateInput = {
@@ -196,6 +197,96 @@ export class TeamShipmentsService {
       where: { id: shipment.id },
       data,
     });
+
+    return { ok: true };
+  }
+
+  async startDelivery(
+    user: any,
+    teamContext: TeamContext,
+    code: string,
+    dto: TeamStartDeliveryDto,
+  ) {
+    const { shipment } = await this.findOrderAndValidate(
+      code,
+      teamContext,
+      user.id,
+    );
+
+    const data: Prisma.shipmentsUpdateInput = {
+      status: 'IN_TRANSIT',
+    };
+
+    if (dto.pickupEta) {
+      data.pickup_eta = dto.pickupEta;
+    }
+
+    await this.prisma.shipments.update({
+      where: { id: shipment.id },
+      data,
+    });
+
+    return { ok: true };
+  }
+
+  async markDelivered(user: any, teamContext: TeamContext, code: string) {
+    const { order, shipment } = await this.findOrderAndValidate(
+      code,
+      teamContext,
+      user.id,
+    );
+
+    await this.prisma.$transaction([
+      this.prisma.shipments.update({
+        where: { id: shipment.id },
+        data: {
+          status: 'DELIVERED',
+          delivered_at: new Date(),
+        },
+      }),
+      this.prisma.orders.update({
+        where: { id: order.id },
+        data: {
+          order_status: OrderStatus.FULFILLED,
+          fulfilled_at: new Date(),
+        },
+      }),
+    ]);
+
+    return { ok: true };
+  }
+
+  async markFailed(
+    user: any,
+    teamContext: TeamContext,
+    code: string,
+    dto: TeamMarkFailedDto,
+  ) {
+    const { order, shipment } = await this.findOrderAndValidate(
+      code,
+      teamContext,
+      user.id,
+    );
+
+    await this.prisma.$transaction([
+      this.prisma.shipments.update({
+        where: { id: shipment.id },
+        data: {
+          status: 'FAILED',
+        },
+      }),
+      this.prisma.orders.update({
+        where: { id: order.id },
+        data: {
+          order_status: OrderStatus.DELIVERY_FAILED,
+          delivery_attempts: {
+            increment: 1,
+          },
+          delivery_failed_at: new Date(),
+          delivery_failed_reason: dto.reason,
+        },
+      }),
+    ]);
 
     return { ok: true };
   }

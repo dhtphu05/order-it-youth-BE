@@ -1,4 +1,3 @@
-
 import {
   Body,
   Controller,
@@ -15,7 +14,9 @@ import { TeamContext } from 'src/common/interfaces/team-context.interface';
 import { TeamShipmentsService } from './team-shipments.service';
 import {
   TeamAssignOrderDto,
+  TeamMarkFailedDto,
   TeamMyShipmentsQueryDto,
+  TeamStartDeliveryDto,
   TeamUnassignedShipmentsQueryDto,
 } from './dto/team-shipments.dto';
 import type { Request } from 'express';
@@ -68,6 +69,38 @@ export class TeamShipmentsController {
       code,
       dto,
     );
+    return { ok: true };
+  }
+
+  @Post('team/orders/:code/start-delivery')
+  async startDelivery(
+    @Req() req: Request,
+    @Param('code') code: string,
+    @Body() dto: TeamStartDeliveryDto,
+  ) {
+    const user = (req as any).user;
+    const teamContext = (req as any).teamContext as TeamContext;
+    await this.teamShipmentsService.startDelivery(user, teamContext, code, dto);
+    return { ok: true };
+  }
+
+  @Post('team/orders/:code/mark-delivered')
+  async markDelivered(@Req() req: Request, @Param('code') code: string) {
+    const user = (req as any).user;
+    const teamContext = (req as any).teamContext as TeamContext;
+    await this.teamShipmentsService.markDelivered(user, teamContext, code);
+    return { ok: true };
+  }
+
+  @Post('team/orders/:code/mark-failed')
+  async markFailed(
+    @Req() req: Request,
+    @Param('code') code: string,
+    @Body() dto: TeamMarkFailedDto,
+  ) {
+    const user = (req as any).user;
+    const teamContext = (req as any).teamContext as TeamContext;
+    await this.teamShipmentsService.markFailed(user, teamContext, code, dto);
     return { ok: true };
   }
 }

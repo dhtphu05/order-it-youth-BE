@@ -1,10 +1,10 @@
-
 import { shipment_status } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsDate,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -59,4 +59,17 @@ export class TeamAssignOrderDto {
   @IsDate()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
   pickupEta?: Date;
+}
+
+export class TeamStartDeliveryDto {
+  @IsOptional()
+  @IsDate()
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
+  pickupEta?: Date;
+}
+
+export class TeamMarkFailedDto {
+  @IsString()
+  @IsNotEmpty()
+  reason: string;
 }
