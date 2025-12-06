@@ -19,7 +19,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckoutOrderDto } from './dto/checkout-order.dto';
-import { generateOrderCode } from './helpers/order-code.helper';
+
 import { OrderResponseDto } from './dto/order-response.dto';
 import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 
@@ -28,7 +28,9 @@ type VariantWithProduct = Prisma.product_variantsGetPayload<{
 }>;
 
 type ComboWithComponents = Prisma.combosGetPayload<{
-  include: { components: { include: { variant: { include: { product: true } } } } };
+  include: {
+    components: { include: { variant: { include: { product: true } } } };
+  };
 }>;
 
 type OrderWithItems = Prisma.ordersGetPayload<{ include: { items: true } }>;
@@ -169,10 +171,7 @@ export class OrdersService {
       const combo = comboMap.get(item.combo_id as string);
       if (!combo || !combo.is_active) {
         throw new BadRequestException(
-          this.buildErrorPayload(
-            'INVALID_COMBO',
-            'Combo không khả dụng.',
-          ),
+          this.buildErrorPayload('INVALID_COMBO', 'Combo không khả dụng.'),
         );
       }
 
@@ -240,7 +239,7 @@ export class OrdersService {
     const fulfillmentType =
       dto.fulfillment_type ?? fulfillment_type.PICKUP_SCHOOL;
     const paymentMethod = dto.payment_method ?? payment_method.VIETQR;
-    const orderCode = generateOrderCode();
+    const orderCode = await this.generateOrderCode(dto.phone);
 
     let teamId: string | null = null;
     let teamAssignmentSource: team_assignment_source | null = null;
@@ -262,74 +261,76 @@ export class OrdersService {
     }
 
     try {
-      const order = await this.prisma.$transaction<OrderWithItems>(async (tx) => {
-        for (const requirement of variantRequirements.values()) {
-          const updateResult = await tx.product_variants.updateMany({
-            where: {
-              id: requirement.variant.id,
-              stock: { gte: requirement.quantity },
+      const order = await this.prisma.$transaction<OrderWithItems>(
+        async (tx) => {
+          for (const requirement of variantRequirements.values()) {
+            const updateResult = await tx.product_variants.updateMany({
+              where: {
+                id: requirement.variant.id,
+                stock: { gte: requirement.quantity },
+              },
+              data: { stock: { decrement: requirement.quantity } },
+            });
+
+            if (updateResult.count !== 1) {
+              const latest = await tx.product_variants.findUnique({
+                where: { id: requirement.variant.id },
+                select: { stock: true },
+              });
+              this.throwOutOfStock([
+                {
+                  variant_id: requirement.variant.id,
+                  requested_qty: requirement.quantity,
+                  available_stock: latest?.stock ?? 0,
+                },
+              ]);
+            }
+          }
+
+          const createdOrder = await tx.orders.create({
+            data: {
+              code: orderCode,
+              order_title: orderTitle,
+              quantity: totalQuantity,
+              fulfillment_type: fulfillmentType,
+              full_name: dto.full_name,
+              phone: dto.phone,
+              email: dto.email,
+              address: dto.address,
+              note: dto.note,
+              grand_total_vnd: subtotal,
+              payment_method: paymentMethod,
+              payment_status: payment_status.PENDING,
+              order_status: OrderStatus.CREATED,
+              payment_reference: orderCode,
+              team_id: teamId,
+              team_assignment_source: teamAssignmentSource ?? undefined,
+              items: {
+                create: computedItems.map((item) => ({
+                  variant_id: item.variantId,
+                  combo_id: item.comboId,
+                  title_snapshot: item.title,
+                  unit_price_vnd: item.unitPrice,
+                  quantity: item.quantity,
+                  line_total_vnd: item.lineTotal,
+                  component_snapshot: item.componentSnapshot ?? undefined,
+                })),
+              },
             },
-            data: { stock: { decrement: requirement.quantity } },
+            include: { items: true },
           });
 
-          if (updateResult.count !== 1) {
-            const latest = await tx.product_variants.findUnique({
-              where: { id: requirement.variant.id },
-              select: { stock: true },
-            });
-            this.throwOutOfStock([
-              {
-                variant_id: requirement.variant.id,
-                requested_qty: requirement.quantity,
-                available_stock: latest?.stock ?? 0,
-              },
-            ]);
-          }
-        }
-
-        const createdOrder = await tx.orders.create({
-          data: {
-            code: orderCode,
-            order_title: orderTitle,
-            quantity: totalQuantity,
-            fulfillment_type: fulfillmentType,
-            full_name: dto.full_name,
-            phone: dto.phone,
-            email: dto.email,
-            address: dto.address,
-            note: dto.note,
-            grand_total_vnd: subtotal,
-            payment_method: paymentMethod,
-            payment_status: payment_status.PENDING,
-            order_status: OrderStatus.CREATED,
-            payment_reference: orderCode,
-            team_id: teamId,
-            team_assignment_source: teamAssignmentSource ?? undefined,
-            items: {
-              create: computedItems.map((item) => ({
-                variant_id: item.variantId,
-                combo_id: item.comboId,
-                title_snapshot: item.title,
-                unit_price_vnd: item.unitPrice,
-                quantity: item.quantity,
-                line_total_vnd: item.lineTotal,
-                component_snapshot: item.componentSnapshot ?? undefined,
-              })),
+          await tx.idempotency_keys.create({
+            data: {
+              scope: dto.idem_scope,
+              key: dto.idem_key,
+              order_code: createdOrder.code,
             },
-          },
-          include: { items: true },
-        });
+          });
 
-        await tx.idempotency_keys.create({
-          data: {
-            scope: dto.idem_scope,
-            key: dto.idem_key,
-            order_code: createdOrder.code,
-          },
-        });
-
-        return createdOrder;
-      });
+          return createdOrder;
+        },
+      );
 
       return this.toOrderResponse(order);
     } catch (error) {
@@ -362,6 +363,40 @@ export class OrdersService {
         ),
       );
     }
+  }
+
+  private async generateOrderCode(phone: string): Promise<string> {
+    // normalize phone
+    const digits = (phone || '').replace(/\D/g, '');
+    if (!digits) {
+      throw new Error('Cannot generate order code: phone has no digits');
+    }
+
+    // create 3-digit random number from 000–999
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0');
+
+    const base = `${random}-${digits}`;
+
+    // ensure unique
+    let code = base;
+    let attempt = 1;
+    const MAX_ATTEMPTS = 1000;
+
+    while (attempt <= MAX_ATTEMPTS) {
+      const exists = await this.prisma.orders.findUnique({
+        where: { code },
+        select: { id: true },
+      });
+
+      if (!exists) return code;
+
+      attempt++;
+      code = `${base}-${attempt}`;
+    }
+
+    throw new Error('Failed to generate unique order code');
   }
 
   async getPaymentIntent(code: string): Promise<PaymentIntentResponseDto> {

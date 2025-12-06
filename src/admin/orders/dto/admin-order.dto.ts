@@ -69,20 +69,21 @@ class ProviderPayloadDto {
 }
 
 export class AdminConfirmPaymentDto {
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
-  @ApiProperty({
-    description: 'Amount received in VND.',
+  @Min(0)
+  @ApiPropertyOptional({
+    description: 'Amount received in VND. Defaults to order grand total if empty.',
     example: 450000,
   })
-  amountVnd: number;
+  amountVnd?: number;
 
   @IsOptional()
   @IsString()
   @MaxLength(160)
   @ApiPropertyOptional({
-    description: 'Unique transaction reference code.',
+    description: 'Unique transaction reference code. Auto-generated if empty.',
     example: 'VCB240101123456',
   })
   transactionId?: string;
@@ -90,7 +91,7 @@ export class AdminConfirmPaymentDto {
   @IsOptional()
   @IsBoolean()
   @ApiPropertyOptional({
-    description: 'Force confirm even when amount mismatch.',
+    description: 'Force confirm even when amount mismatch. Defaults to false.',
     example: false,
   })
   force?: boolean;
@@ -99,7 +100,7 @@ export class AdminConfirmPaymentDto {
   @Type(() => Date)
   @IsDate()
   @ApiPropertyOptional({
-    description: 'Timestamp when payment was made.',
+    description: 'Timestamp when payment was made. Defaults to current time.',
     example: '2026-01-15T09:30:00+07:00',
   })
   paidAt?: Date;

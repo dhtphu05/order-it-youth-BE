@@ -94,8 +94,17 @@ export class AdminOrdersService {
       throw new BadRequestException('Order is not pending payment');
     }
 
+    const now = new Date();
+    const amountVnd = dto.amountVnd ?? order.grand_total_vnd;
+    const paidAt = dto.paidAt ?? now;
     const force = dto.force ?? false;
-    if (!force && dto.amountVnd !== order.grand_total_vnd) {
+    const transactionId =
+      dto.transactionId ?? `AUTO-${order.code}-${now.getTime()}`;
+    const providerPayload = dto.providerPayload
+      ? { ...dto.providerPayload }
+      : undefined;
+
+    if (!force && amountVnd !== order.grand_total_vnd) {
       throw new BadRequestException('Amount does not match order total');
     }
 
@@ -108,11 +117,6 @@ export class AdminOrdersService {
       }
     }
 
-    const paidAt = dto.paidAt ?? new Date();
-    const providerPayload = dto.providerPayload
-      ? { ...dto.providerPayload }
-      : undefined;
-
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
       const pendingPayment = await tx.payments.findFirst({
         where: { order_id: order.id, status: payment_status.PENDING },
@@ -124,8 +128,8 @@ export class AdminOrdersService {
           where: { id: pendingPayment.id },
           data: {
             status: payment_status.SUCCESS,
-            amount_vnd: dto.amountVnd,
-            transaction_id: dto.transactionId ?? null,
+            amount_vnd: amountVnd,
+            transaction_id: transactionId,
             provider_payload: providerPayload,
             paid_at: paidAt,
           },
@@ -136,8 +140,8 @@ export class AdminOrdersService {
             order_id: order.id,
             status: payment_status.SUCCESS,
             method: order.payment_method,
-            amount_vnd: dto.amountVnd,
-            transaction_id: dto.transactionId ?? null,
+            amount_vnd: amountVnd,
+            transaction_id: transactionId,
             provider_payload: providerPayload,
             paid_at: paidAt,
             reference_code: order.code,
@@ -163,8 +167,8 @@ export class AdminOrdersService {
           entity_id: order.id,
           details: {
             code: order.code,
-            amount_vnd: dto.amountVnd,
-            transaction_id: dto.transactionId ?? null,
+            amount_vnd: amountVnd,
+            transaction_id: transactionId,
             force,
             paid_at: paidAt,
             provider_payload: providerPayload ?? null,
