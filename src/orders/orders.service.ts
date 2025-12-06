@@ -241,21 +241,26 @@ export class OrdersService {
     const paymentMethod = dto.payment_method ?? payment_method.VIETQR;
     const orderCode = await this.generateOrderCode(dto.phone);
 
-    let teamId: string | null = null;
+    const teamId = await this.resolveTeamForCheckout(dto.referralTeamCode);
     let teamAssignmentSource: team_assignment_source | null = null;
 
-    if (dto.team_ref_code) {
-      const team = await this.findTeamByRefCode(dto.team_ref_code);
-      if (team) {
-        teamId = team.id;
-        teamAssignmentSource = team_assignment_source.REFERRAL;
-      }
-    }
+    if (teamId) {
+      if (dto.referralTeamCode) {
+        const referralMatch = await this.prisma.teams.findFirst({
+          where: {
+            id: teamId,
+            code: dto.referralTeamCode,
+            is_active: true,
+          },
+          select: { id: true },
+        });
 
-    if (!teamId) {
-      const team = await this.pickTeamForAutoAssign();
-      if (team) {
-        teamId = team.id;
+        if (referralMatch) {
+          teamAssignmentSource = team_assignment_source.REFERRAL;
+        }
+      }
+
+      if (!teamAssignmentSource) {
         teamAssignmentSource = team_assignment_source.AUTO;
       }
     }
@@ -303,7 +308,7 @@ export class OrdersService {
               payment_status: payment_status.PENDING,
               order_status: OrderStatus.CREATED,
               payment_reference: orderCode,
-              team_id: teamId,
+              team_id: teamId ?? null,
               team_assignment_source: teamAssignmentSource ?? undefined,
               items: {
                 create: computedItems.map((item) => ({
@@ -463,42 +468,38 @@ export class OrdersService {
     };
   }
 
-  private async findTeamByRefCode(teamRefCode: string) {
-    if (!teamRefCode) {
-      return null;
-    }
-    return this.prisma.teams.findFirst({
-      where: { code: teamRefCode, is_active: true },
-    });
-  }
+  private async resolveTeamForCheckout(
+    referralTeamCode?: string,
+  ): Promise<string | null> {
+    if (referralTeamCode) {
+      const team = await this.prisma.teams.findFirst({
+        where: { code: referralTeamCode, is_active: true },
+        select: { id: true },
+      });
 
-  private async pickTeamForAutoAssign() {
-    const teams = await this.prisma.teams.findMany({
-      where: { is_active: true },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        orders: {
-          where: { payment_status: 'SUCCESS' },
-          select: { grand_total_vnd: true },
-        },
-      },
-    });
-
-    if (!teams.length) {
-      return null;
+      if (team) {
+        return team.id;
+      }
     }
 
-    const withRevenue = teams.map((t) => {
-      const revenue = t.orders.reduce((sum, o) => sum + o.grand_total_vnd, 0);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { orders, ...teamData } = t;
-      return { ...teamData, revenue };
-    });
+    const rows = await this.prisma.$queryRaw<
+      Array<{ id: string; revenue: bigint }>
+    >`
+      SELECT
+        t.id,
+        t.created_at,
+        COALESCE(SUM(o.grand_total_vnd), 0) AS revenue
+      FROM teams t
+      LEFT JOIN orders o
+        ON o.team_id = t.id
+       AND o.payment_status = 'SUCCESS'
+      WHERE t.is_active = TRUE
+      GROUP BY t.id, t.created_at
+      ORDER BY revenue ASC, t.created_at ASC
+      LIMIT 1;
+    `;
 
-    withRevenue.sort((a, b) => a.revenue - b.revenue);
-    return withRevenue[0];
+    return rows[0]?.id ?? null;
   }
 
   private buildVariantItem(
