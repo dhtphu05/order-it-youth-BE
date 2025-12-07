@@ -10,7 +10,7 @@ import { OrderResponseDto } from 'src/orders/dto/order-response.dto';
 
 @Injectable()
 export class TeamOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private toOrderResponseDto(order: orders): OrderResponseDto {
     return {
@@ -42,8 +42,9 @@ export class TeamOrdersService {
   async listOrdersForTeams(
     teamIds: string[],
     query: TeamOrderListQueryDto,
+    isAdmin?: boolean,
   ) {
-    if (teamIds.length === 0) {
+    if (teamIds.length === 0 && !isAdmin) {
       return {
         total: 0,
         page: query.page || 1,
@@ -63,11 +64,11 @@ export class TeamOrdersService {
     } = query;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ordersWhereInput = {
-      team_id: {
-        in: teamIds,
-      },
-    };
+    const where: Prisma.ordersWhereInput = {};
+
+    if (!isAdmin) {
+      where.team_id = { in: teamIds };
+    }
 
     if (q) {
       where.OR = [
@@ -125,7 +126,7 @@ export class TeamOrdersService {
     };
   }
 
-  async getOrderForTeams(teamIds: string[], code: string) {
+  async getOrderForTeams(teamIds: string[], code: string, isAdmin?: boolean) {
     const order = await this.prisma.orders.findUnique({
       where: { code },
       include: {
@@ -139,10 +140,30 @@ export class TeamOrdersService {
       throw new NotFoundException('ORDER_NOT_FOUND');
     }
 
-    if (order.team_id && !teamIds.includes(order.team_id)) {
+    if (!isAdmin && order.team_id && !teamIds.includes(order.team_id)) {
       throw new ForbiddenException('ORDER_NOT_IN_TEAM');
     }
 
     return this.toOrderResponseDto(order);
+  }
+
+  async deleteOrder(teamIds: string[], code: string, isAdmin?: boolean) {
+    const order = await this.prisma.orders.findUnique({
+      where: { code },
+    });
+
+    if (!order) {
+      throw new NotFoundException('ORDER_NOT_FOUND');
+    }
+
+    if (!isAdmin && (!order.team_id || !teamIds.includes(order.team_id))) {
+      throw new ForbiddenException('ORDER_NOT_IN_TEAM');
+    }
+
+    await this.prisma.orders.delete({
+      where: { code },
+    });
+
+    return { ok: true, message: 'Order deleted successfully' };
   }
 }

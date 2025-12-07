@@ -52,15 +52,15 @@ type VariantRequirement = {
 
 type PriceChangeDetail =
   | {
-      variant_id: string;
-      old_price_vnd: number | null;
-      new_price_vnd: number;
-    }
+    variant_id: string;
+    old_price_vnd: number | null;
+    new_price_vnd: number;
+  }
   | {
-      combo_id: string;
-      old_unit_price_vnd: number | null;
-      new_unit_price_vnd: number;
-    };
+    combo_id: string;
+    old_unit_price_vnd: number | null;
+    new_unit_price_vnd: number;
+  };
 
 type StockIssueDetail = {
   variant_id: string;
@@ -73,7 +73,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   async checkout(dto: CheckoutOrderDto): Promise<OrderResponseDto> {
     const existed = await this.prisma.idempotency_keys.findFirst({
@@ -109,19 +109,19 @@ export class OrdersService {
     const [variants, combos] = await Promise.all([
       variantIds.length
         ? this.prisma.product_variants.findMany({
-            where: { id: { in: variantIds } },
-            include: { product: true },
-          })
+          where: { id: { in: variantIds } },
+          include: { product: true },
+        })
         : [],
       comboIds.length
         ? this.prisma.combos.findMany({
-            where: { id: { in: comboIds } },
-            include: {
-              components: {
-                include: { variant: { include: { product: true } } },
-              },
+          where: { id: { in: comboIds } },
+          include: {
+            components: {
+              include: { variant: { include: { product: true } } },
             },
-          })
+          },
+        })
         : [],
     ]);
 
@@ -241,15 +241,15 @@ export class OrdersService {
     const paymentMethod = dto.payment_method ?? payment_method.VIETQR;
     const orderCode = await this.generateOrderCode(dto.phone);
 
-    const teamId = await this.resolveTeamForCheckout(dto.referralTeamCode);
+    const teamId = await this.resolveTeamForCheckout(dto.team_ref_code);
     let teamAssignmentSource: team_assignment_source | null = null;
 
     if (teamId) {
-      if (dto.referralTeamCode) {
+      if (dto.team_ref_code) {
         const referralMatch = await this.prisma.teams.findFirst({
           where: {
             id: teamId,
-            code: dto.referralTeamCode,
+            code: dto.team_ref_code,
             is_active: true,
           },
           select: { id: true },
@@ -469,11 +469,11 @@ export class OrdersService {
   }
 
   private async resolveTeamForCheckout(
-    referralTeamCode?: string,
+    team_ref_code?: string,
   ): Promise<string | null> {
-    if (referralTeamCode) {
+    if (team_ref_code) {
       const team = await this.prisma.teams.findFirst({
-        where: { code: referralTeamCode, is_active: true },
+        where: { code: team_ref_code, is_active: true },
         select: { id: true },
       });
 

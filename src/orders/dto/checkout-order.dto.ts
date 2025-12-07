@@ -145,7 +145,7 @@ export class CheckoutOrderDto {
   })
   @IsOptional()
   @IsString()
-  referralTeamCode?: string;
+  team_ref_code?: string;
 
   @ApiProperty({
     description: 'Scope để đảm bảo idempotent (ví dụ checkout:session-abc).',

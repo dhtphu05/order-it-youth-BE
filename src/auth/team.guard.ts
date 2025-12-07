@@ -11,7 +11,7 @@ import { user_role } from '@prisma/client';
 
 @Injectable()
 export class TeamGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -47,6 +47,6 @@ export class TeamGuard implements CanActivate {
   }
 
   private buildAdminContext(): TeamContext {
-    return { teamIds: [], rolesByTeam: {} };
+    return { teamIds: [], rolesByTeam: {}, isAdmin: true };
   }
 }
