@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, orders } from '@prisma/client';
+import { Prisma, orders, teams } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TeamOrderListQueryDto } from './dto/team-order-list-query.dto';
 import { OrderResponseDto } from 'src/orders/dto/order-response.dto';
@@ -36,6 +36,13 @@ export class TeamOrdersService {
         quantity: item.quantity,
         line_total_vnd: item.line_total_vnd,
       })),
+      team: (order as any).team
+        ? {
+          id: (order as any).team.id,
+          code: (order as any).team.code,
+          name: (order as any).team.name,
+        }
+        : undefined,
     };
   }
 
@@ -111,6 +118,7 @@ export class TeamOrdersService {
           items: true,
           payments: true,
           shipment: true,
+          team: true,
         },
         orderBy: {
           created_at: 'desc',
@@ -133,6 +141,7 @@ export class TeamOrdersService {
         items: true,
         payments: true,
         shipment: true,
+        team: true,
       },
     });
 

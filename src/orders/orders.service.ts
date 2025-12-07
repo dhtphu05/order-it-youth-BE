@@ -322,7 +322,7 @@ export class OrdersService {
                 })),
               },
             },
-            include: { items: true },
+            include: { items: true, team: true },
           });
 
           await tx.idempotency_keys.create({
@@ -657,14 +657,21 @@ export class OrdersService {
       payment_status: order.payment_status,
       order_status: order.order_status,
       grand_total_vnd: order.grand_total_vnd,
-      items: order.items.map((item) => ({
-        title: item.title_snapshot,
+      items: (order as any).items.map((item) => ({
+        title: item.title,
         variant_id: item.variant_id,
         combo_id: item.combo_id,
         unit_price_vnd: item.unit_price_vnd,
         quantity: item.quantity,
         line_total_vnd: item.line_total_vnd,
       })),
+      team: (order as any).team
+        ? {
+          id: (order as any).team.id,
+          code: (order as any).team.code,
+          name: (order as any).team.name,
+        }
+        : undefined,
       delivery_attempts: order.delivery_attempts,
       delivery_failed_at: order.delivery_failed_at ?? undefined,
       delivery_failed_reason: order.delivery_failed_reason ?? undefined,

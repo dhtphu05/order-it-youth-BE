@@ -21,6 +21,17 @@ export class OrderItemResponseDto {
   line_total_vnd: number;
 }
 
+export class OrderTeamResponseDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  code: string;
+
+  @ApiProperty()
+  name: string;
+}
+
 export class OrderResponseDto {
   @ApiProperty()
   code: string;
@@ -90,6 +101,9 @@ export class OrderResponseDto {
 
   @ApiProperty({ type: 'integer' })
   grand_total_vnd: number;
+
+  @ApiPropertyOptional({ type: () => OrderTeamResponseDto })
+  team?: OrderTeamResponseDto;
 
   @ApiProperty({ type: () => [OrderItemResponseDto] })
   items: OrderItemResponseDto[];

@@ -24,7 +24,7 @@ import type { Request } from 'express';
 @Controller()
 @UseGuards(JwtAuthGuard, TeamGuard)
 export class TeamShipmentsController {
-  constructor(private readonly teamShipmentsService: TeamShipmentsService) {}
+  constructor(private readonly teamShipmentsService: TeamShipmentsService) { }
 
   @Get('team/shipments/unassigned')
   async listUnassigned(
@@ -52,6 +52,14 @@ export class TeamShipmentsController {
     const user = (req as any).user;
     const teamContext = (req as any).teamContext as TeamContext;
     await this.teamShipmentsService.assignSelfToOrder(user, teamContext, code);
+    return { ok: true };
+  }
+
+  @Post('team/orders/:code/unassign-self')
+  async unassignSelf(@Req() req: Request, @Param('code') code: string) {
+    const user = (req as any).user;
+    const teamContext = (req as any).teamContext as TeamContext;
+    await this.teamShipmentsService.unassignSelf(user, teamContext, code);
     return { ok: true };
   }
 

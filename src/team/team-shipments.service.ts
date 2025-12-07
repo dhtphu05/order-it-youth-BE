@@ -17,7 +17,7 @@ import { TeamContext } from 'src/common/interfaces/team-context.interface';
 
 @Injectable()
 export class TeamShipmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private async findOrderAndValidate(
     code: string,
@@ -144,6 +144,36 @@ export class TeamShipmentsService {
     await this.prisma.shipments.update({
       where: { id: shipment.id },
       data,
+    });
+
+    return { ok: true };
+  }
+
+  async unassignSelf(user: any, teamContext: TeamContext, code: string) {
+    const { order, shipment } = await this.findOrderAndValidate(
+      code,
+      teamContext,
+    );
+
+    if (shipment.assigned_user_id !== user.id) {
+      throw new ForbiddenException('NOT_ASSIGNED_TO_YOU');
+    }
+
+    if (
+      shipment.status === shipment_status.DELIVERED ||
+      shipment.status === shipment_status.FAILED
+    ) {
+      throw new ForbiddenException('CANNOT_UNASSIGN_COMPLETED_SHIPMENT');
+    }
+
+    await this.prisma.shipments.update({
+      where: { id: shipment.id },
+      data: {
+        assigned_user: { disconnect: true },
+        assigned_name: null,
+        assigned_phone: null,
+        status: shipment_status.PENDING,
+      },
     });
 
     return { ok: true };

@@ -11,6 +11,7 @@ import { AdminCombosModule } from './admin/combos/admin-combos.module';
 import { AdminOrdersModule } from './admin/orders/admin-orders.module';
 import { AdminTeamsModule } from './admin/teams/admin-teams.module';
 import { AdminUsersModule } from './admin/users/admin-users.module';
+import { AdminStatisticsModule } from './admin/statistics/admin-statistics.module';
 import { TeamModule } from './team/team.module';
 import { AuthModule } from './auth/auth.module';
 
@@ -26,10 +27,11 @@ import { AuthModule } from './auth/auth.module';
     BankTransactionsModule,
     AdminProductsModule,
     AdminCombosModule,
+    AdminStatisticsModule,
     AdminOrdersModule,
     AdminTeamsModule,
     AdminUsersModule,
     TeamModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
