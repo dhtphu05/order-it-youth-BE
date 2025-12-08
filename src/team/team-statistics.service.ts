@@ -28,6 +28,7 @@ export class TeamStatisticsService {
 
         const dateFilter = this.buildDateFilter(from, to);
 
+
         // Get teams that match the context (active or inactive)
         const teams = await this.prisma.teams.findMany({
             where: {
@@ -167,5 +168,34 @@ export class TeamStatisticsService {
             period: { from, to },
             teams: stats,
         };
+    }
+
+    async getTeamDailyStats(teamIds: string[], from?: Date, to?: Date) {
+        if (teamIds.length === 0) {
+            return [];
+        }
+
+        const fromDate = from ? from.toISOString() : new Date(0).toISOString();
+        const toDate = to ? to.toISOString() : new Date().toISOString();
+
+        // Use raw query for date grouping
+        const rawStats = await this.prisma.$queryRaw<any[]>`
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as total_orders,
+                SUM(CASE WHEN payment_status = 'SUCCESS' THEN grand_total_vnd ELSE 0 END) as revenue
+            FROM orders
+            WHERE team_id IN (${Prisma.join(teamIds)})
+            AND created_at >= ${fromDate}::timestamp
+            AND created_at <= ${toDate}::timestamp
+            GROUP BY DATE(created_at)
+            ORDER BY DATE(created_at) ASC
+        `;
+
+        return rawStats.map(stat => ({
+            date: stat.date, // Prisma returns Date object or string depending on driver
+            total_orders: Number(stat.total_orders),
+            revenue: Number(stat.revenue || 0),
+        }));
     }
 }

@@ -52,4 +52,24 @@ export class TeamStatisticsController {
             toDate,
         );
     }
+
+    @Get('daily')
+    @ApiOperation({ summary: 'Get daily statistics for my teams' })
+    @ApiQuery({ name: 'from', required: false, type: String })
+    @ApiQuery({ name: 'to', required: false, type: String })
+    async getTeamDailyStats(
+        @Req() req: Request,
+        @Query('from') from?: string,
+        @Query('to') to?: string,
+    ) {
+        const teamContext = (req as any).teamContext as TeamContext;
+        const fromDate = from ? new Date(from) : undefined;
+        const toDate = to ? new Date(to) : undefined;
+
+        return this.statisticsService.getTeamDailyStats(
+            teamContext.teamIds,
+            fromDate,
+            toDate,
+        );
+    }
 }

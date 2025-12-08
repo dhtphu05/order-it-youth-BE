@@ -14,6 +14,7 @@ describe('TeamStatisticsService', () => {
         orders: {
             count: jest.fn(),
         },
+        $queryRaw: jest.fn(),
         shipments: {
             groupBy: jest.fn(),
         },
@@ -85,6 +86,28 @@ describe('TeamStatisticsService', () => {
                     }),
                 }),
             );
+        });
+    });
+
+    describe('getTeamDailyStats', () => {
+        it('should return daily stats', async () => {
+            const teamIds = ['team-1'];
+            const mockRawStats = [
+                { date: new Date('2024-01-01'), total_orders: BigInt(5), revenue: BigInt(100000) },
+                { date: new Date('2024-01-02'), total_orders: BigInt(3), revenue: BigInt(50000) },
+            ];
+
+            (service as any).prisma.$queryRaw.mockResolvedValue(mockRawStats);
+
+            const result = await service.getTeamDailyStats(teamIds);
+
+            expect(result).toHaveLength(2);
+            expect(result[0]).toEqual({
+                date: new Date('2024-01-01'),
+                total_orders: 5,
+                revenue: 100000,
+            });
+            expect(prisma.$queryRaw).toHaveBeenCalled();
         });
     });
 });
