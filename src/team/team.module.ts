@@ -7,6 +7,7 @@ import { TeamStatisticsController } from './team-statistics.controller';
 import { TeamStatisticsService } from './team-statistics.service';
 import { TeamShipmentsController } from './team-shipments.controller';
 import { TeamShipmentsService } from './team-shipments.service';
+import { PublicShipmentsController } from './public-shipments.controller';
 
 @Module({
   imports: [PrismaModule],
@@ -14,6 +15,7 @@ import { TeamShipmentsService } from './team-shipments.service';
     TeamShipmentsController,
     TeamOrdersController,
     TeamStatisticsController,
+    PublicShipmentsController,
   ],
   providers: [
     TeamShipmentsService,

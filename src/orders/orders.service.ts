@@ -298,10 +298,11 @@ export class OrdersService {
               order_title: orderTitle,
               quantity: totalQuantity,
               fulfillment_type: fulfillmentType,
-              full_name: dto.full_name,
-              phone: dto.phone,
-              email: dto.email,
-              address: dto.address,
+
+              full_name: dto.full_name || 'Khách vãng lai',
+              phone: dto.phone || '0000000000',
+              email: dto.email || 'guest@example.com',
+              address: dto.address || 'Mua tại quầy',
               note: dto.note,
               grand_total_vnd: subtotal,
               payment_method: paymentMethod,
@@ -370,11 +371,12 @@ export class OrdersService {
     }
   }
 
-  private async generateOrderCode(phone: string): Promise<string> {
+  private async generateOrderCode(phone?: string): Promise<string> {
     // normalize phone
-    const digits = (phone || '').replace(/\D/g, '');
+    const digits = (phone || '0000000000').replace(/\D/g, '');
     if (!digits) {
-      throw new Error('Cannot generate order code: phone has no digits');
+      // Fallback for empty digits if somehow passed
+      return `ORD-${Date.now()}`;
     }
 
     // create 3-digit random number from 000–999

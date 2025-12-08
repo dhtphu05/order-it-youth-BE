@@ -327,4 +327,62 @@ export class TeamShipmentsService {
 
     return { ok: true };
   }
+
+  async publicAssignShipper(code: string, shipperId: string) {
+    // 1. Find Order
+    const order = await this.prisma.orders.findUnique({
+      where: { code },
+      include: { shipment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('ORDER_NOT_FOUND');
+    }
+
+    if (!order.team_id) {
+      // Cannot assign if order is not linked to a team
+      throw new ForbiddenException('ORDER_HAS_NO_TEAM');
+    }
+
+    // 2. Validate Shipper is in Team
+    const membership = await this.prisma.team_members.findFirst({
+      where: {
+        team_id: order.team_id,
+        user_id: shipperId
+      },
+      include: { user: true }
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('SHIPPER_NOT_IN_TEAM');
+    }
+
+    // 3. Create or Update Shipment
+    let shipment = order.shipment;
+    if (!shipment) {
+      shipment = await this.prisma.shipments.create({
+        data: {
+          order_id: order.id,
+          status: shipment_status.ASSIGNED,
+          assigned_user_id: shipperId,
+          assigned_name: membership.user.full_name,
+          assigned_phone: membership.user.phone
+        }
+      });
+    } else {
+      // If shipment exists, update assignment (even if already assigned? Public implies flexible init)
+      // User requested "quick order" flow, so assuming re-assignment or initial assignment is allowed.
+      await this.prisma.shipments.update({
+        where: { id: shipment.id },
+        data: {
+          status: shipment_status.ASSIGNED,
+          assigned_user_id: shipperId,
+          assigned_name: membership.user.full_name,
+          assigned_phone: membership.user.phone
+        }
+      });
+    }
+
+    return { ok: true, shipment_id: shipment.id };
+  }
 }

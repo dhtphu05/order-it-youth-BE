@@ -86,18 +86,18 @@ export class CheckoutItemDto {
 }
 
 export class CheckoutOrderDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsString()
-  @IsNotEmpty()
-  full_name: string;
+  @IsOptional()
+  full_name?: string;
 
-  @ApiProperty({ description: 'Số điện thoại khách hàng.' })
+  @ApiPropertyOptional({ description: 'Số điện thoại khách hàng.' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @Matches(/^[0-9+]{8,15}$/, {
     message: 'Số điện thoại không hợp lệ.',
   })
-  phone: string;
+  phone?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
