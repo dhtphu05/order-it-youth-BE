@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Delete,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -297,4 +298,25 @@ export class AdminOrdersController {
     return this.service.cancel(code, dto);
   }
 
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Delete order',
+    description: 'Permanently delete an order and its associated data (items, payments, shipments).',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Order UUID to delete.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Order deleted.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found.',
+  })
+  delete(@Param('id') id: string) {
+    return this.service.deleteOrder(id);
+  }
 }

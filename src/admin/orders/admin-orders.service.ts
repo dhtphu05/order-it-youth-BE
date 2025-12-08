@@ -418,4 +418,14 @@ export class AdminOrdersService {
       shipment: true,
     };
   }
+  async deleteOrder(id: string) {
+    const order = await this.prisma.orders.findUnique({ where: { id } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    await this.prisma.orders.delete({ where: { id } });
+
+    return { message: 'Order deleted successfully', id };
+  }
 }
