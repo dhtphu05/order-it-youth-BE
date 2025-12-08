@@ -12,6 +12,7 @@ import { AdminOrdersModule } from './admin/orders/admin-orders.module';
 import { AdminTeamsModule } from './admin/teams/admin-teams.module';
 import { AdminUsersModule } from './admin/users/admin-users.module';
 import { AdminStatisticsModule } from './admin/statistics/admin-statistics.module';
+import { PosModule } from './pos/pos.module';
 import { TeamModule } from './team/team.module';
 import { AuthModule } from './auth/auth.module';
 
@@ -28,6 +29,7 @@ import { AuthModule } from './auth/auth.module';
     AdminProductsModule,
     AdminCombosModule,
     AdminStatisticsModule,
+    PosModule,
     AdminOrdersModule,
     AdminTeamsModule,
     AdminUsersModule,

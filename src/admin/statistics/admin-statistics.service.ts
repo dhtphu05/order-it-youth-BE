@@ -62,9 +62,9 @@ export class AdminStatisticsService {
     async getTeamStats(from?: Date, to?: Date) {
         const dateFilter = this.buildDateFilter(from, to);
 
-        // Get all active teams
+        // Get all teams (active or inactive) to show full history
         const teams = await this.prisma.teams.findMany({
-            where: { is_active: true },
+            // where: { is_active: true }, // Removed to show historical stats
             select: { id: true, code: true, name: true },
         });
 

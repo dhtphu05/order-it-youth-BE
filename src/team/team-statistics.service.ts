@@ -28,11 +28,11 @@ export class TeamStatisticsService {
 
         const dateFilter = this.buildDateFilter(from, to);
 
-        // Get active teams that match the context
+        // Get teams that match the context (active or inactive)
         const teams = await this.prisma.teams.findMany({
             where: {
                 id: { in: teamIds },
-                is_active: true,
+                // is_active: true, // Removed
             },
             select: { id: true, code: true, name: true },
         });

@@ -34,7 +34,7 @@ import { OrderResponseDto } from '../../orders/dto/order-response.dto';
 @ApiBearerAuth('admin-jwt')
 @Controller('admin/orders')
 export class AdminOrdersController {
-  constructor(private readonly service: AdminOrdersService) {}
+  constructor(private readonly service: AdminOrdersService) { }
 
   @Get()
   @ApiOperation({

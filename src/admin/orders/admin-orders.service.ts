@@ -11,6 +11,8 @@ import {
   payment_status,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OrdersService } from '../../orders/orders.service';
+import { CheckoutOrderDto } from '../../orders/dto/checkout-order.dto';
 import {
   AdminConfirmPaymentDto,
   AdminOrderListQueryDto,
@@ -25,7 +27,10 @@ import {
 
 @Injectable()
 export class AdminOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ordersService: OrdersService,
+  ) { }
 
   async list(query: AdminOrderListQueryDto) {
     const page = query.page ?? 1;
