@@ -125,4 +125,39 @@ export class AdminStatisticsService {
             teams: stats,
         };
     }
+
+    async getDailyStats(from?: Date, to?: Date) {
+        // Build SQL conditions manually or parameters for raw query
+        // Since we need to group by date(created_at), we use queryRaw
+
+        let dateCondition = Prisma.sql`1=1`;
+
+        if (from && to) {
+            dateCondition = Prisma.sql`created_at >= ${from} AND created_at <= ${to}`;
+        } else if (from) {
+            dateCondition = Prisma.sql`created_at >= ${from}`;
+        } else if (to) {
+            dateCondition = Prisma.sql`created_at <= ${to}`;
+        }
+
+        const rawStats = await this.prisma.$queryRaw<any[]>`
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as total_orders,
+                SUM(CASE WHEN payment_status = 'SUCCESS' THEN grand_total_vnd ELSE 0 END) as revenue
+            FROM orders
+            WHERE ${dateCondition}
+            GROUP BY DATE(created_at)
+            ORDER BY DATE(created_at) DESC
+        `;
+
+        // Map deserialized BigInt/dates if necessary, though prisma returns standard objects usually.
+        // It's safer to map number fields to prevent BigInt serialization issues in JSON.
+
+        return rawStats.map((stat) => ({
+            date: stat.date, // likely a Date object or string depending on driver
+            total_orders: Number(stat.total_orders),
+            revenue: Number(stat.revenue || 0),
+        }));
+    }
 }

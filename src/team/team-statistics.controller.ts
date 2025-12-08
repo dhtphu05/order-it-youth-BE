@@ -30,4 +30,26 @@ export class TeamStatisticsController {
             toDate,
         );
     }
+
+    @Get('shipments')
+    @ApiOperation({ summary: 'Get shipment statistics for my teams' })
+    @ApiQuery({ name: 'from', required: false, type: String })
+    @ApiQuery({ name: 'to', required: false, type: String })
+    async getMyTeamShipmentStats(
+        @Req() req: Request,
+        @Query('from') from?: string,
+        @Query('to') to?: string,
+    ) {
+        const teamContext = (req as any).teamContext as TeamContext;
+        const fromDate = from ? new Date(from) : undefined;
+        const toDate = to ? new Date(to) : undefined;
+
+        console.log('Fetching shipment stats for teams:', teamContext.teamIds);
+
+        return this.statisticsService.getTeamShipmentStats(
+            teamContext.teamIds,
+            fromDate,
+            toDate,
+        );
+    }
 }

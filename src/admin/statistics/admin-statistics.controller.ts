@@ -53,4 +53,19 @@ export class AdminStatisticsController {
         const toDate = to ? new Date(to) : undefined;
         return this.statisticsService.getTeamStats(fromDate, toDate);
     }
+
+    @Get('daily')
+    @ApiOperation({ summary: 'Get daily statistics (revenue, total orders)' })
+    @ApiQuery({ name: 'from', required: false, type: String })
+    @ApiQuery({ name: 'to', required: false, type: String })
+    async getDailyStats(
+        @Req() req,
+        @Query('from') from?: string,
+        @Query('to') to?: string,
+    ) {
+        this.validateAdmin(req);
+        const fromDate = from ? new Date(from) : undefined;
+        const toDate = to ? new Date(to) : undefined;
+        return this.statisticsService.getDailyStats(fromDate, toDate);
+    }
 }

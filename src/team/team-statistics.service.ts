@@ -94,4 +94,61 @@ export class TeamStatisticsService {
             teams: stats,
         };
     }
+
+    async getTeamShipmentStats(teamIds: string[], from?: Date, to?: Date) {
+        if (teamIds.length === 0) {
+            return {
+                period: { from, to },
+                teams: [],
+            };
+        }
+
+        const dateFilter = this.buildDateFilter(from, to);
+
+        const teams = await this.prisma.teams.findMany({
+            where: {
+                id: { in: teamIds },
+            },
+            select: { id: true, code: true, name: true },
+        });
+
+        const stats = await Promise.all(
+            teams.map(async (team) => {
+                const shipmentAgg = await this.prisma.shipments.groupBy({
+                    by: ['status'],
+                    where: {
+                        order: {
+                            team_id: team.id,
+                            ...dateFilter,
+                        },
+                    },
+                    _count: {
+                        _all: true,
+                    },
+                });
+
+                const totalShipments = shipmentAgg.reduce((acc, curr) => acc + curr._count._all, 0);
+
+                const statusCounts = shipmentAgg.reduce((acc, curr) => {
+                    acc[curr.status] = curr._count._all;
+                    return acc;
+                }, {} as Record<string, number>);
+
+                return {
+                    team: {
+                        id: team.id,
+                        code: team.code,
+                        name: team.name,
+                    },
+                    total_shipments: totalShipments,
+                    shipments_by_status: statusCounts,
+                };
+            }),
+        );
+
+        return {
+            period: { from, to },
+            teams: stats,
+        };
+    }
 }
