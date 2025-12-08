@@ -11,6 +11,9 @@ describe('TeamStatisticsService', () => {
         teams: {
             findMany: jest.fn(),
         },
+        orders: {
+            count: jest.fn(),
+        },
         shipments: {
             groupBy: jest.fn(),
         },
@@ -33,33 +36,32 @@ describe('TeamStatisticsService', () => {
     });
 
     describe('getTeamShipmentStats', () => {
-        it('should return shipment stats for teams', async () => {
+        it('should return shipment stats including implicit pending', async () => {
             const teamIds = ['team-1'];
             const mockTeams = [{ id: 'team-1', code: 'T1', name: 'Team One' }];
+            // Assume 5 total orders: 1 DELIVERED, 1 FAILED, 3 with no shipment record (Implicit PENDING)
+            const mockTotalOrders = 5;
             const mockShipmentStats = [
-                { status: 'PENDING', _count: { _all: 5 } },
-                { status: 'DELIVERED', _count: { _all: 3 } },
+                { status: 'DELIVERED', _count: { _all: 1 } },
+                { status: 'FAILED', _count: { _all: 1 } },
             ];
 
             mockPrismaService.teams.findMany.mockResolvedValue(mockTeams);
+            mockPrismaService.orders.count.mockResolvedValue(mockTotalOrders);
             mockPrismaService.shipments.groupBy.mockResolvedValue(mockShipmentStats);
 
             const result = await service.getTeamShipmentStats(teamIds);
 
             expect(result.teams).toHaveLength(1);
-            expect(result.teams[0].total_shipments).toBe(8);
+            expect(result.teams[0].total_shipments).toBe(5);
             expect(result.teams[0].shipments_by_status).toEqual({
-                PENDING: 5,
-                DELIVERED: 3,
+                DELIVERED: 1,
+                FAILED: 1,
+                PENDING: 3, // 5 - (1+1) = 3
             });
-            expect(prisma.shipments.groupBy).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: expect.objectContaining({
-                        order: expect.objectContaining({
-                            team_id: 'team-1',
-                        }),
-                    }),
-                }),
+
+            expect(prisma.orders.count).toHaveBeenCalledWith(
+                expect.objectContaining({ where: expect.objectContaining({ team_id: 'team-1' }) })
             );
         });
 

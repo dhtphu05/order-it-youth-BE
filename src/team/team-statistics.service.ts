@@ -114,6 +114,15 @@ export class TeamStatisticsService {
 
         const stats = await Promise.all(
             teams.map(async (team) => {
+                // 1. Total orders for this team
+                const totalOrders = await this.prisma.orders.count({
+                    where: {
+                        team_id: team.id,
+                        ...dateFilter,
+                    },
+                });
+
+                // 2. Existing shipments grouped by status
                 const shipmentAgg = await this.prisma.shipments.groupBy({
                     by: ['status'],
                     where: {
@@ -127,12 +136,20 @@ export class TeamStatisticsService {
                     },
                 });
 
-                const totalShipments = shipmentAgg.reduce((acc, curr) => acc + curr._count._all, 0);
+                // 3. Calculate known shipments count and map statuses
+                let totalKnownShipments = 0;
+                const statusCounts: Record<string, number> = {};
 
-                const statusCounts = shipmentAgg.reduce((acc, curr) => {
-                    acc[curr.status] = curr._count._all;
-                    return acc;
-                }, {} as Record<string, number>);
+                for (const item of shipmentAgg) {
+                    statusCounts[item.status] = item._count._all;
+                    totalKnownShipments += item._count._all;
+                }
+
+                // 4. Infer implicit PENDING shipments (orders without shipment records)
+                // Any order without a shipment record is effectively PENDING
+                const implicitPending = Math.max(0, totalOrders - totalKnownShipments);
+
+                statusCounts['PENDING'] = (statusCounts['PENDING'] || 0) + implicitPending;
 
                 return {
                     team: {
@@ -140,7 +157,7 @@ export class TeamStatisticsService {
                         code: team.code,
                         name: team.name,
                     },
-                    total_shipments: totalShipments,
+                    total_shipments: totalOrders, // Total shipment duties = Total orders
                     shipments_by_status: statusCounts,
                 };
             }),
