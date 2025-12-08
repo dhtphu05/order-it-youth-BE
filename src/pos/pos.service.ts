@@ -46,48 +46,64 @@ export class PosService {
         checkoutDto.idem_key = `pos-${now}-${Math.random()}`;
 
         // 2. Call Standard Checkout
+        console.log('PosService: Calling checkout with', JSON.stringify(checkoutDto));
         let orderResponse = await this.ordersService.checkout(checkoutDto);
+        console.log('PosService: Checkout result:', JSON.stringify(orderResponse));
 
         // 3. Post-processing
 
         // A. Team Override
         if (dto.team_id) {
+            console.log(`PosService: Overriding team to ${dto.team_id}`);
             if (orderResponse.team?.id !== dto.team_id) {
-                await this.prisma.orders.update({
-                    where: { code: orderResponse.code },
-                    data: { team_id: dto.team_id }
-                });
+                try {
+                    await this.prisma.orders.update({
+                        where: { code: orderResponse.code },
+                        data: { team_id: dto.team_id }
+                    });
+                    console.log('PosService: Team updated successfully');
 
-                const team = await this.prisma.teams.findUnique({ where: { id: dto.team_id } });
-                if (team) {
-                    orderResponse.team = { id: team.id, code: team.code, name: team.name };
+                    const team = await this.prisma.teams.findUnique({ where: { id: dto.team_id } });
+                    if (team) {
+                        orderResponse.team = { id: team.id, code: team.code, name: team.name };
+                    }
+                } catch (error) {
+                    console.error('PosService: Failed to update team', error);
+                    // Decide: Throw or continue? Continuing preserves the order but with wrong team.
+                    // Given the user constraint "not saved", this error would normally throw 500.
+                    throw error;
                 }
             }
         }
 
         // B. Shipper Assignment (if provided)
         if (dto.shipper_id) {
-            // Retrieve Order ID (response might not have it or depends on DTO)
+            console.log(`PosService: Assigning shipper ${dto.shipper_id}`);
             const orderDB = await this.prisma.orders.findUnique({ where: { code: orderResponse.code } });
             if (orderDB) {
-                // Check if user exists
                 const user = await this.prisma.users.findUnique({ where: { id: dto.shipper_id } });
                 if (user) {
-                    // Create Shipment
-                    await this.prisma.shipments.create({
-                        data: {
-                            order_id: orderDB.id,
-                            status: shipment_status.ASSIGNED,
-                            assigned_user_id: user.id,
-                            assigned_name: user.full_name,
-                            assigned_phone: user.phone
-                        }
-                    });
+                    try {
+                        await this.prisma.shipments.create({
+                            data: {
+                                order_id: orderDB.id,
+                                status: shipment_status.ASSIGNED,
+                                assigned_user_id: user.id,
+                                assigned_name: user.full_name,
+                                assigned_phone: user.phone
+                            }
+                        });
+                        console.log('PosService: Shipper assigned successfully');
+                    } catch (error) {
+                        console.error('PosService: Failed to create shipment', error);
+                        throw error;
+                    }
+                } else {
+                    console.warn(`PosService: Shipper ${dto.shipper_id} not found`);
                 }
             }
         }
 
-        return orderResponse;
         return orderResponse;
     }
 

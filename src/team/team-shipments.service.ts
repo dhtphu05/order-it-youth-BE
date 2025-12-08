@@ -67,10 +67,17 @@ export class TeamShipmentsService {
 
     const where: Prisma.ordersWhereInput = {
       team_id: { in: teamIds },
-      shipment: {
-        assigned_user_id: null,
-        status: status ?? shipment_status.PENDING,
-      },
+      OR: [
+        // Case 1: No shipment record created yet (Implicitly PENDING & Unassigned)
+        { shipment: { is: null } },
+        // Case 2: Shipment exists but matches criteria
+        {
+          shipment: {
+            assigned_user_id: null,
+            status: status ?? shipment_status.PENDING,
+          },
+        },
+      ],
     };
 
     if (q) {
