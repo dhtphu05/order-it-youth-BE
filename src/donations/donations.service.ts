@@ -129,4 +129,46 @@ export class DonationsService {
             },
         };
     }
+
+    async findAllPublic(query: { mssv?: string; page?: number; limit?: number }) {
+        const { mssv, page = 1, limit = 20 } = query;
+        const skip = (page - 1) * limit;
+
+        const where: any = {
+            payment_status: DonationPaymentStatus.CONFIRMED, // Only show confirmed
+        };
+        if (mssv) where.mssv = { contains: mssv, mode: 'insensitive' };
+
+        const [data, total] = await Promise.all([
+            this.prisma.donations.findMany({
+                where,
+                skip,
+                take: Number(limit),
+                orderBy: { confirmed_at: 'desc' },
+                select: {
+                    id: true,
+                    donation_code: true,
+                    student_name: true,
+                    student_class: true,
+                    mssv: true,
+                    amount: true,
+                    pvcd_points: true,
+                    confirmed_at: true,
+                    created_at: true,
+                    // Exclude phone and internal payment details
+                }
+            }),
+            this.prisma.donations.count({ where }),
+        ]);
+
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                pages: Math.ceil(total / limit),
+            },
+        };
+    }
 }

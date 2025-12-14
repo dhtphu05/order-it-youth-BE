@@ -18,6 +18,15 @@ export class DonationsController {
     create(@Body() dto: CreateDonationDto) {
         return this.donationsService.create(dto);
     }
+
+    @Get()
+    search(
+        @Query('mssv') mssv?: string,
+        @Query('page') page?: number,
+        @Query('limit') limit?: number,
+    ) {
+        return this.donationsService.findAllPublic({ mssv, page, limit });
+    }
 }
 
 @Controller('admin/donations')
