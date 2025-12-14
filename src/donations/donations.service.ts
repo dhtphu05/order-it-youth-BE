@@ -94,14 +94,20 @@ export class DonationsService {
         });
     }
 
-    async findAll(query: { mssv?: string; provider?: DonationPaymentProvider; status?: DonationPaymentStatus; page?: number; limit?: number }) {
-        const { mssv, provider, status, page = 1, limit = 20 } = query;
+    async findAll(query: { mssv?: string; provider?: DonationPaymentProvider; status?: DonationPaymentStatus; startDate?: string; endDate?: string; page?: number; limit?: number }) {
+        const { mssv, provider, status, startDate, endDate, page = 1, limit = 20 } = query;
         const skip = (page - 1) * limit;
 
         const where: any = {};
         if (mssv) where.mssv = { contains: mssv, mode: 'insensitive' };
         if (provider) where.payment_provider = provider;
         if (status) where.payment_status = status;
+
+        if (startDate || endDate) {
+            where.created_at = {};
+            if (startDate) where.created_at.gte = new Date(startDate);
+            if (endDate) where.created_at.lte = new Date(endDate);
+        }
 
         const [data, total] = await Promise.all([
             this.prisma.donations.findMany({

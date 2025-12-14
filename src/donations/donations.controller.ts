@@ -29,10 +29,12 @@ export class AdminDonationsController {
         @Query('mssv') mssv?: string,
         @Query('provider') provider?: DonationPaymentProvider,
         @Query('status') status?: DonationPaymentStatus,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
         @Query('page') page?: number,
         @Query('limit') limit?: number,
     ) {
-        return this.donationsService.findAll({ mssv, provider, status, page, limit });
+        return this.donationsService.findAll({ mssv, provider, status, startDate, endDate, page, limit });
     }
 
     @Post(':id/confirm')
