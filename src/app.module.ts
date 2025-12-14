@@ -14,6 +14,7 @@ import { AdminUsersModule } from './admin/users/admin-users.module';
 import { AdminStatisticsModule } from './admin/statistics/admin-statistics.module';
 import { TeamModule } from './team/team.module';
 import { AuthModule } from './auth/auth.module';
+import { DonationsModule } from './donations/donations.module';
 
 @Module({
   imports: [
@@ -31,7 +32,9 @@ import { AuthModule } from './auth/auth.module';
     AdminOrdersModule,
     AdminTeamsModule,
     AdminUsersModule,
+    AdminUsersModule,
     TeamModule,
+    DonationsModule,
   ],
 })
 export class AppModule { }

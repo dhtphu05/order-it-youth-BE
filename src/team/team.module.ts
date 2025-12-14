@@ -8,6 +8,8 @@ import { TeamStatisticsService } from './team-statistics.service';
 import { TeamShipmentsController } from './team-shipments.controller';
 import { TeamShipmentsService } from './team-shipments.service';
 import { PublicShipmentsController } from './public-shipments.controller';
+import { PublicTeamsController } from './public-teams.controller';
+import { PublicTeamsService } from './public-teams.service';
 
 @Module({
   imports: [PrismaModule],
@@ -16,11 +18,13 @@ import { PublicShipmentsController } from './public-shipments.controller';
     TeamOrdersController,
     TeamStatisticsController,
     PublicShipmentsController,
+    PublicTeamsController,
   ],
   providers: [
     TeamShipmentsService,
     TeamOrdersService,
     TeamStatisticsService,
+    PublicTeamsService,
   ],
 })
 export class TeamModule { }

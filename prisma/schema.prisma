@@ -467,3 +467,37 @@ model audit_logs {
 
   @@index([entity, entity_id], map: "idx_audit_entity")
 }
+
+/// ==== 10) Ủng hộ sinh viên ====
+enum DonationPaymentProvider {
+  VIETQR
+  PAYOS
+}
+
+enum DonationPaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+model donations {
+  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donation_code    String                  @unique @db.VarChar(40)
+  student_name     String                  @db.VarChar(120)
+  student_class    String                  @db.VarChar(60)
+  mssv             String                  @db.VarChar(20)
+  phone            String                  @db.VarChar(20)
+  amount           Int
+  payment_provider DonationPaymentProvider
+  payment_ref      String?                 @db.VarChar(120)
+  payment_payload  Json?                   @db.JsonB
+  payment_status   DonationPaymentStatus   @default(PENDING)
+  pvcd_points      Int?
+  confirmed_at     DateTime?               @db.Timestamptz
+  created_at       DateTime                @default(now()) @db.Timestamptz
+  updated_at       DateTime                @updatedAt @db.Timestamptz
+
+  @@index([mssv], map: "idx_donations_mssv")
+  @@index([donation_code], map: "idx_donations_code")
+  @@index([payment_status], map: "idx_donations_status")
+}
