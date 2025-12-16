@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "donations" ALTER COLUMN "student_class" DROP NOT NULL,
+ALTER COLUMN "mssv" DROP NOT NULL,
+ALTER COLUMN "phone" DROP NOT NULL;

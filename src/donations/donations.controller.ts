@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards, Delete } from '@nestjs/common';
 import { DonationsService } from './donations.service';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { DonationPaymentStatus, DonationPaymentProvider } from '@prisma/client';
@@ -49,6 +49,11 @@ export class AdminDonationsController {
     @Post(':id/confirm')
     confirm(@Param('id') id: string) {
         return this.donationsService.confirm(id);
+    }
+
+    @Delete(':id')
+    delete(@Param('id') id: string) {
+        return this.donationsService.delete(id);
     }
 }
 

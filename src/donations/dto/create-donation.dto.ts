@@ -6,17 +6,20 @@ export class CreateDonationDto {
     @IsNotEmpty()
     student_name: string;
 
+    @IsOptional()
     @IsString()
     @IsNotEmpty()
-    student_class: string;
+    student_class?: string;
 
+    @IsOptional()
     @IsString()
     @IsNotEmpty()
-    mssv: string;
+    mssv?: string;
 
+    @IsOptional()
     @IsString()
     @IsNotEmpty()
-    phone: string;
+    phone?: string;
 
     @IsInt()
     @Min(1000)

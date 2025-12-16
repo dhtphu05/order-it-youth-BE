@@ -484,9 +484,9 @@ model donations {
   id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   donation_code    String                  @unique @db.VarChar(40)
   student_name     String                  @db.VarChar(120)
-  student_class    String                  @db.VarChar(60)
-  mssv             String                  @db.VarChar(20)
-  phone            String                  @db.VarChar(20)
+  student_class    String?                 @db.VarChar(60)
+  mssv             String?                 @db.VarChar(20)
+  phone            String?                 @db.VarChar(20)
   amount           Int
   payment_provider DonationPaymentProvider
   payment_ref      String?                 @db.VarChar(120)

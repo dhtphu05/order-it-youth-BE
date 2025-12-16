@@ -17,9 +17,10 @@ export class DonationsService {
             const providerEnum = dto.provider ?? DonationPaymentProvider.VIETQR;
 
             // Generate donation code (unique)
-            // Format: {3_random_digits}-{phone}
+            // Format: {3_random_digits}-{phone_or_random_10_digits}
             const randomPrefix = Math.floor(100 + Math.random() * 900); // 100-999
-            const donationCode = `${randomPrefix}-${dto.phone}`;
+            const suffix = dto.phone || Math.floor(1000000000 + Math.random() * 9000000000).toString();
+            const donationCode = `${randomPrefix}-${suffix}`;
 
             // Create PENDING donation
             const donation = await this.prisma.donations.create({
@@ -42,7 +43,7 @@ export class DonationsService {
                 amount: donation.amount,
                 description: `Donation ${donation.donation_code}`,
                 buyerName: donation.student_name,
-                buyerPhone: donation.phone,
+                buyerPhone: donation.phone ?? undefined,
             });
 
             // Update donation with payment ref if available
@@ -170,5 +171,19 @@ export class DonationsService {
                 pages: Math.ceil(total / limit),
             },
         };
+    }
+
+    async delete(id: string) {
+        try {
+            return await this.prisma.donations.delete({
+                where: { id },
+            });
+        } catch (error) {
+            // Check for Prisma "Record to delete does not exist" error (P2025)
+            if (error.code === 'P2025') {
+                throw new NotFoundException('Donation not found');
+            }
+            throw error;
+        }
     }
 }
